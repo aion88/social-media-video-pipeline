@@ -17,8 +17,10 @@ automatique ne fait pas : **pouvoir rééditer**, parce qu'il ne fait pas un san
 - **Rapide, dynamique.** Un dérush auto qui garde tout le mou est « trop long » : le montage fait
   à la main est en général plus court de 30 % parce que les digressions sautent et que les blocs
   défilent vite.
-- Cible : **60 à 90 s**, ou la durée visée par `NOTES-REPRISE.md`. Le sujet de l'accroche décide
-  ce qui reste : tout passage qui ne le sert pas est candidat à la coupe.
+- **Aucune durée cible.** On ne coupe QUE les faux départs, la régie et les phrases
+  abandonnées. Une digression, un exemple, une explication de ce que fait une étape : on GARDE,
+  tu repasse derrière. Couper du contenu pour tenir une durée est la pire faute (2026-10-27 :
+  l'explication de `/sm-recherche` coupée pour tenir 2 min, à remettre).
 - Le motion vient APRÈS ce montage validé, jamais avant : un re-montage oblige à refaire le motion.
 
 ## Étapes
@@ -32,11 +34,9 @@ automatique ne fait pas : **pouvoir rééditer**, parce qu'il ne fait pas un san
    l'utilisateur, ou évident à l'écoute) : ajouter `--lang en`. `derush` absent du PATH :
    `.claude/skills/derush/scripts/derush.sh` à la place, même arguments.
 2. Étape 6 de `derush` : `derush words <STEM>`, écrire `retraction_cuts.json`.
-2b. **Coupe serrée** (en plus des faux départs) : relire `derush words` contre le sujet de
-   `NOTES-REPRISE.md` et lister dans `videos/<STEM>/coupe-serree.md`, une ligne par passage :
-   bornes SOURCE, la phrase, pourquoi (digression, redite, exemple de trop, explication déjà
-   dite). Les ajouter à `retraction_cuts.json` sauf si tu as demandé à valider d'abord. Dire la
-   durée avant / après. Au-dessus de 90 s : continuer à couper ou dire ce que ça coûte.
+2b. **Passages à te proposer, jamais coupés d'office** : si un passage semble hors sujet
+   (digression, redite), le lister dans `videos/<STEM>/coupe-serree.md` (bornes SOURCE, la phrase,
+   pourquoi) et le dire dans le rapport. Il n'entre dans `retraction_cuts.json` que sur demande.
 3. `derush render <STEM>` : montage + `cuts.md` + **`<STEM>.fcpxml`** (écrit automatiquement).
 4. Relire `cuts.md` (section diff) comme le dit `derush`.
 5. Te rendre la main, en puces :
