@@ -1,4 +1,11 @@
-# Caption
+---
+name: sm-caption
+description: "Écrit la caption de la vidéo (caption.txt) et la fait relire contre le transcript et STYLE.md. Rien n'est inventé. Triggers: /sm-caption, fais la caption, écris la description, légende de ma vidéo."
+---
+
+# /sm-caption <STEM>
+
+Étape « caption » de la chaîne (clé `caption` dans `ETAT.json`).
 
 Un seul nom, `caption.txt` : brouillon dans le dossier de recherche, version finale dans
 `videos/<STEM>/`. Un exemple de forme : `example/caption.txt`.
@@ -18,5 +25,6 @@ Un seul nom, `caption.txt` : brouillon dans le dossier de recherche, version fin
    contre le transcript : une option reste une option (« parfois »), un « je pense » n'est pas une
    certitude. Corriger, relire une seconde fois. Il n'y a pas de contrôle automatique : la
    relecture EST le contrôle, alors la faire vraiment, en re-lisant chaque affirmation.
-4. Tu relis, puis `outils/video valide <STEM> caption`. Ensuite l'export :
-   `outils/video export <STEM> <nom-court>`.
+4. Tu relis, puis `outils/video valide <STEM> caption`. Ensuite : `/sm-export <STEM>`.
+
+S'arrêter ici : le texte à relire. Suite : `/sm-export <STEM>`.

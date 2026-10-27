@@ -1,4 +1,12 @@
-# Sous-titres dynamiques : l'accroche, puis une idée par phrase
+---
+name: sm-soustitres
+description: "Sous-titres dynamiques de la vidéo : l'accroche au début, puis une idée par phrase avec les mots clés surlignés, calée sur la voix (ta voix, mot à mot). Écrit overlays.json, fait l'essai, rend la vidéo. Triggers: /sm-soustitres, sous-titres, mets les sous-titres, overlays texte, habille ma vidéo avec du texte."
+---
+
+# /sm-soustitres <STEM>
+
+Étape « sous-titres » de la chaîne (clé `overlays` dans `ETAT.json`). Prérequis : le montage est
+exporté (`<STEM>.reel.mp4`) et le look est fixé (`/sm-etalonnage`, sinon le rendu refuse).
 
 Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) :
 
@@ -25,8 +33,7 @@ Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) 
      fusionne avec sa voisine. Un nom mal transcrit se corrige dans le texte affiché, puis on te
      le signale.
    - Le look : sans clé `look`, c'est `outils/looks/look.cube` s'il est fixé. S'il ne l'est pas,
-     le rendu refuse : te proposer la planche (`outils/look.py planche <vidéo>`, puis
-     `outils/look.py fixe <lettre>`). En attendant ton choix, un essai :
+     le rendu refuse : lancer `/sm-etalonnage <STEM>`. En attendant ton choix, un essai :
      `outils/look.py cube D videos/<STEM>/overlays/essai-D.cube` et
      `"look": "overlays/essai-D.cube"`. `"look": null` = aucun look, seulement si tu le dis.
      (`look.py` lit les LUT « Film Looks » de DaVinci Resolve, gratuit suffit ; sans Resolve,
@@ -37,3 +44,5 @@ Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) 
    ouvrir `videos/<STEM>/<STEM>.overlays.mp4`.
 5. Tu valides, puis `outils/video valide <STEM> overlays`. Retouche : changer `overlays.json`,
    puis refaire 3 et 4.
+
+S'arrêter ici : ouvrir la vidéo et `overlays/check.jpg`, attendre la validation. Suite : `/sm-caption <STEM>`.

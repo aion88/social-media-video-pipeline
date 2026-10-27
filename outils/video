@@ -8,6 +8,11 @@
   outils/video export STEM NOM   le paquet à publier dans videos/STEM/final/ (NOM.mp4, caption, vignette) ; refuse sans caption.txt
                                  ou hors -14 LUFS (à 1 LU près) ; écrit ETAT.json. Publier reste ton geste
 
+Étapes (dans l'ordre) : recherche, montage, étalonnage (« look » dans ETAT.json), motion (si tu le veux),
+sous-titres (« overlays »), caption, export. diag, repare et medias n'ont aucun outil : OPTIONNELLES,
+elles ne bloquent jamais « suite ». Chaque étape a sa skill (/sm-etalonnage, /sm-soustitres, /sm-caption,
+/sm-export) ; /sm-video les enchaîne.
+
 statut n'écrit jamais rien. ETAT.json a un seul écrivain, ce fichier : valide et export aujourd'hui,
 les commandes des étapes à venir demain. La porte : /sm-video STEM.
 Racine : <dépôt>/videos, ou DERUSH_OUT_ROOT (la même variable que derush.sh).
@@ -61,11 +66,17 @@ SCHEMA = 1
 ETAPES = ("diag", "repare", "montage", "look", "medias", "motion", "overlays", "caption", "export")
 # le plan : les coupes, la planche des médias, le motion ; puis les sous-titres et la caption
 A_VALIDER = ("montage", "medias", "motion", "overlays", "caption")
+# Étapes OPTIONNELLES : aucun outil derrière (diag, repare, medias). Jamais la « suite », jamais
+# bloquantes ; elles restent dans ETAT.json pour qu'un état ancien se lise sans casser.
+OPTIONNELLES = ("diag", "repare", "medias")
+OPTION_TXT = "optionnelle, pas d'outil"
+NOMS = {"look": "étalonnage"}  # nom affiché ; la clé d'ETAT.json et de « valide » reste « look »
+# Le look se fixe une fois pour toutes (outils/look.py fixe) : LOOK.json fait preuve pour toutes les vidéos.
+LOOK_JSON = SM / "outils" / "looks" / "LOOK.json"
 TOLERANCE = 60  # s : l'écrivain pose ETAT.json juste après les fichiers de son étape
 
 # Avec ETAT.json, le fichier qui montre chaque étape. look : aucun fichier tant que derush export ne
-# pose pas le look ; outils/overlays.py le pose, et refuse de
-# rendre sans look choisi. diag et export n'ont aucun fichier dans le dossier : ETAT.json seul.
+# pose pas le look : LOOK.json (outils/looks/), écrit par look.py fixe, le montre. diag et export n'ont aucun fichier dans le dossier : ETAT.json seul.
 PREUVES = {
     "repare": ("{stem}.repare.mp4",),
     "montage": ("cuts.md", "{stem}.derush.mp4"),
@@ -83,20 +94,18 @@ GESTE = {
     "caption": "relire caption.txt",
 }
 SUITE = {
-    "diag": "(pas d'outil pour cette étape)",
-    "repare": "(pas d'outil pour cette étape)",
-    "look": "derush export {ref}",
-    "medias": "(pas d'outil pour cette étape)",
+    "diag": OPTION_TXT,
+    "repare": OPTION_TXT,
+    "look": "/sm-etalonnage {nom}",
+    "medias": OPTION_TXT,
     "motion": "/sm-motion {nom}",
-    "overlays": "outils/overlays.py texte {nom}, écrire overlays/overlays.json, essai puis rendu (/sm-video {nom})",
-    "caption": "écrire caption.txt, relue contre STYLE.md (/sm-video {nom})",
-    "export": "outils/video export {nom} <nom-court>",
+    "overlays": "/sm-soustitres {nom}",
+    "caption": "/sm-caption {nom}",
+    "export": "/sm-export {nom}",
 }
-# Sans fichier dans un premier ETAT.json : sautées tant qu'elles n'ont pas d'outil ou pas de demande.
-# Un fichier qui apparaît plus tard (motion rendu) recale l'étape, statut le dit.
-SAUTEES = {"diag": "pas d'outil", "repare": "pas d'outil",
-           "look": "posé par outils/overlays.py, qui refuse de rendre sans look choisi",
-           "medias": "pas d'outil", "motion": "pas demandé, /sm-motion le fait"}
+# Sans fichier dans un premier ETAT.json : sautée tant qu'elle n'est pas demandée. Un fichier qui
+# apparaît plus tard (motion rendu) recale l'étape, statut le dit. L'étalonnage n'est plus sauté.
+SAUTEES = {"motion": "pas demandé, /sm-motion le fait"}
 
 VIDEO = (".mov", ".mp4", ".m4v")
 SUFFIXES = (".derush.mp4", ".reel.mp4", ".logos.mp4", ".motion.mp4", ".repare.mp4", ".overlays.mp4", ".fcpxml")
@@ -295,13 +304,13 @@ def lecture_ancienne(d, stem, t, src, ref):
     elif t["overlays"] and t["caption"]:
         resume = "sous-titres et caption faits, à exporter"
         geste = f"valider {stem}.overlays.mp4 et caption.txt"
-        suite = f"après ton OK : outils/video export {nom} <nom-court>"
+        suite = f"après ton OK : /sm-export {nom}"
     elif t["overlays"]:
         resume = f"sous-titres rendus le {jour(t['overlays'])}, à valider"
         geste = GESTE["overlays"].format(stem=stem)
-        suite = f"après ton OK (outils/video valide {nom} overlays) : la caption, /sm-video {nom}"
+        suite = f"après ton OK (outils/video valide {nom} overlays) : la caption, /sm-caption {nom}"
     elif t["overlays_spec"]:
-        resume, geste, suite = "sous-titres commencés (overlays/overlays.json)", "rien de toi pour l'instant", f"outils/overlays.py essai {nom}, puis outils/overlays.py {nom}"
+        resume, geste, suite = "sous-titres commencés (overlays/overlays.json)", "rien de toi pour l'instant", f"/sm-soustitres {nom}"
     elif t["motion_dir"]:
         resume, geste, suite = "motion commencé", "rien de toi pour l'instant", f"/sm-motion {nom}"
     elif t["reel"]:
@@ -349,12 +358,17 @@ def recaler(d, stem, etat):
             retards.append(f"{e} ({nom} du {datetime.fromtimestamp(t):%Y-%m-%d %H:%M}, {dit})")
             etapes[e] = {"fait": datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds"),
                          "mesures": {"recale": nom}, "valide": e not in A_VALIDER}
+    # Le look est fixé une fois pour toutes : LOOK.json le prouve pour chaque vidéo, sans date à comparer.
+    l = etapes["look"]
+    if not l["fait"] and not l["mesures"].get("saute") and LOOK_JSON.exists():
+        etapes["look"] = {"fait": datetime.fromtimestamp(quand(LOOK_JSON)).astimezone().isoformat(timespec="seconds"),
+                          "mesures": {"recale": "outils/looks/LOOK.json"}, "valide": True}
     # Une étape plus ancienne qu'une étape d'avant est périmée : un re-montage refait l'export.
     avant = None
     for e in ETAPES:
         v = etapes[e]
         t = horodatage(v["fait"])
-        if t is None or v["mesures"].get("saute"):
+        if t is None or v["mesures"].get("saute") or (e == "look" and v["mesures"].get("recale")):
             continue
         if avant and t + TOLERANCE < avant[1]:
             perimees[e] = avant[0]
@@ -370,15 +384,18 @@ def lecture_etat(d, stem, t, etat, ref):
     fait, reste, cible = [], [], None
     for e in ETAPES:
         v, m = etapes[e], etapes[e]["mesures"]
+        n = NOMS.get(e, e)
         if m.get("saute"):
-            fait.append(f"{e} sautée ({m['saute']})")
+            fait.append(f"{n} sautée ({m['saute']})")
         elif v["fait"]:
-            quoi = f"{e} {(v['fait'] or '')[:10]}" + (f" (recalé sur {m['recale']})" if m.get("recale") else "")
+            quoi = f"{n} {(v['fait'] or '')[:10]}" + (f" (recalé sur {m['recale']})" if m.get("recale") else "")
             fait.append(quoi + ("" if v["valide"] else ", à valider"))
-            if not v["valide"] and cible is None:
+            if not v["valide"] and cible is None and e not in OPTIONNELLES:
                 cible = ("valider", e)
+        elif e in OPTIONNELLES:
+            reste.append(f"{n} ({OPTION_TXT})")
         else:
-            reste.append(e + (f" (à refaire : plus ancienne que {perimees[e]})" if e in perimees else ""))
+            reste.append(n + (f" (à refaire : plus ancienne que {perimees[e]})" if e in perimees else ""))
             if cible is None:
                 cible = ("faire", e)
     if cible is None:
@@ -387,14 +404,15 @@ def lecture_etat(d, stem, t, etat, ref):
         fini = False
         quoi, e = cible
         if quoi == "valider":
-            resume = f"{e} fait, attend ta validation"
+            resume = f"{NOMS.get(e, e)} fait, attend ta validation"
             geste = GESTE.get(e, f"valider {e}").format(stem=stem)
             if e == "montage" and t["fcpxml"]:
                 geste += f", ou {stem}.fcpxml dans DaVinci"
-            apres = next((x for x in ETAPES[ETAPES.index(e) + 1:] if not etapes[x]["fait"] and not etapes[x]["mesures"].get("saute")), None)
+            apres = next((x for x in ETAPES[ETAPES.index(e) + 1:]
+                          if x not in OPTIONNELLES and not etapes[x]["fait"] and not etapes[x]["mesures"].get("saute")), None)
             suite = f"après ton OK (outils/video valide {nom} {e}) : " + (commande(apres, t, ref, nom) if apres else FIN)
         else:
-            resume, geste, suite = f"{e} à faire", "rien de toi pour l'instant", commande(e, t, ref, nom)
+            resume, geste, suite = f"{NOMS.get(e, e)} à faire", "rien de toi pour l'instant", commande(e, t, ref, nom)
     if retards:
         ligne = "ETAT.json en retard sur les fichiers : " + " ; ".join(retards) + ". État recalé sur les fichiers, rien écrit"
     else:
@@ -406,8 +424,10 @@ def lecture_etat(d, stem, t, etat, ref):
 def commande(e, t, ref, nom):
     if e == "montage":
         return suite_montage(t, ref) or f"/sm-montage {ref}"
-    if e == "overlays" and not t["reel"]:
-        return f"derush export {ref} (le montage à -14 LUFS), puis /sm-video {nom}"
+    if e in OPTIONNELLES:
+        return OPTION_TXT
+    if e in ("look", "overlays") and not t["reel"]:
+        return f"derush export {ref} (le montage à -14 LUFS), puis {SUITE[e].format(nom=nom)}"
     return SUITE[e].format(ref=ref, nom=nom)
 
 
@@ -453,6 +473,8 @@ def etat_a_jour(d, jusqua):
 
 def valider(a):
     d = trouver(a.stem)
+    if a.etape == "etalonnage":
+        a.etape = "look"
     if a.etape not in ETAPES:
         sys.exit(f"étape inconnue « {a.etape} » : {', '.join(ETAPES)}")
     etat = etat_a_jour(d, a.etape)
@@ -576,7 +598,7 @@ def main():
     s.add_argument("--toutes", action="store_true", help="liste aussi les vidéos terminées")
     v = sub.add_parser("valide", help="ton OK sur une étape faite ; écrit ETAT.json")
     v.add_argument("stem")
-    v.add_argument("etape", help=", ".join(ETAPES))
+    v.add_argument("etape", help=", ".join(ETAPES) + " (etalonnage = look)")
     x = sub.add_parser("export", help="le paquet à publier dans videos/STEM/final/ ; écrit ETAT.json")
     x.add_argument("stem")
     x.add_argument("nom", help="nom court du fichier exporté (sante-mentale-neurones)")

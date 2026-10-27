@@ -17,8 +17,27 @@ derush render IMG_4567 && derush export IMG_4567   # monte, vérifie, sort le fi
 Depuis Claude Code : « dérushe IMG_4567 » suffit. La skill `derush` enchaîne les trois et écrit
 les faux départs elle-même. Pour une passe sans lecture (0 faux départ) : `derush all <video>`.
 
-La porte de toute la chaîne, de la recherche à l'export : `/sm-video IMG_4567`, une étape par
-session (`.claude/skills/sm-video/`). La finition est plus bas.
+La chaîne entière, de la recherche à l'export : `/sm-video IMG_4567`. Elle lit `outils/video statut`,
+appelle la skill de l'étape suivante dans la MÊME session, s'arrête à chaque validation (la tienne), puis
+reprend là où la vidéo en est au prochain appel. Chaque étape a aussi sa commande :
+
+| Étape | Skill | Tu valides |
+|---|---|---|
+| recherche | `/sm-recherche <sujet>` | les notes, puis tu filme |
+| montage | `/sm-montage <prise>`, puis `derush export <STEM>` | les coupes |
+| étalonnage (clé `look`) | `/sm-etalonnage <STEM>` | la lettre du look |
+| motion, optionnel | `/sm-motion <STEM>` | le motion |
+| sous-titres (clé `overlays`) | `/sm-soustitres <STEM>` | la vidéo |
+| caption | `/sm-caption <STEM>` | le texte |
+| export | `/sm-export <STEM>` | rien : publier est ton geste |
+
+DaVinci Resolve est OPTIONNEL (gratuit suffit). Il apporte les LUT film de l'étalonnage (sans lui,
+seul le look A, neutre, est proposé) et la retouche manuelle des coupes via le `.fcpxml`. Les coupes
+elles-mêmes sont faites par ffmpeg, pas par Resolve.
+
+`diag`, `repare` et `medias` n'ont aucun outil : étapes optionnelles, `statut` les affiche
+« optionnelle, pas d'outil » et elles ne bloquent jamais la suite. Le nom affiché de `look` est
+« étalonnage » (`outils/video valide <STEM> etalonnage` marche aussi). La finition est plus bas.
 
 ## Où en est une vidéo
 
@@ -40,21 +59,21 @@ et `caption.txt` = finition faite, à exporter ; `<STEM>.overlays.mp4` seul = so
 ou `RECHERCHE.md` seuls = recherche faite, prise à tourner. Si un `_work/source.txt`
 vise un chemin disparu, `statut` le dit et donne la commande avec le chemin du fichier.
 
-## La finition : look, sous-titres, caption, export
+## La finition : étalonnage, sous-titres, caption, export
 
 ```bash
-outils/look.py planche videos/IMG_4567/IMG_4567.reel.mp4   # 4 looks sur une planche, une seule fois
+outils/look.py planche videos/IMG_4567/IMG_4567.reel.mp4   # /sm-etalonnage : les looks sur une planche, une seule fois (sans Resolve : A seul)
 outils/look.py fixe D                    # outils/looks/look.cube (+ copie dans DaVinci LUT/Perso si Resolve est là)
-outils/overlays.py texte IMG_4567        # les phrases datées (transcrit la vidéo la 1re fois)
+outils/overlays.py texte IMG_4567        # /sm-soustitres : les phrases datées (transcrit la vidéo la 1re fois)
 outils/overlays.py essai IMG_4567        # le calendrier des idées, sans rendu
 outils/overlays.py IMG_4567              # IMG_4567.overlays.mp4 + overlays/check.jpg, ~1 min
 # la caption : Claude la relit contre STYLE.md (pas de contrôle automatique)
-outils/video export IMG_4567 mon-sujet   # videos/IMG_4567/final/ : mon-sujet.mp4 + caption.txt + thumbnail.png ; refuse sans caption ou hors -14 LUFS (±1)
+outils/video export IMG_4567 mon-sujet   # /sm-export : videos/IMG_4567/final/ : mon-sujet.mp4 + caption.txt + thumbnail.png ; refuse sans caption ou hors -14 LUFS (±1)
 ```
 
 Les idées (`overlays/overlays.json`) et la caption s'écrivent avec Claude, selon les règles de
-`.claude/skills/sm-video/etapes/` : une idée par phrase, ses mots, mots clés surlignés,
-fondu sans parallaxe, sous le menton. Le look passe sous le texte, une seule fois : sans
+`.claude/skills/sm-soustitres/` et `.claude/skills/sm-caption/` : une idée par phrase, ses mots, mots clés surlignés,
+fondu sans parallaxe, sous le menton. Le look passe sous le texte, une seule fois (`/sm-etalonnage`) : sans
 `outils/looks/look.cube` ni clé `look`, le rendu refuse.
 
 ## Ce qu'il y a dans un dossier
@@ -89,8 +108,10 @@ Ce qui est dans git est la mémoire du montage : ce qui a été coupé et pourqu
 ## ETAT.json, l'état d'une vidéo
 
 Un fichier par dossier, un seul écrivain : `outils/video`, par `valide` et `export`. Le premier `valide` d'une
-vidéo commencée sans lui le tire des fichiers : une étape que ses fichiers montrent est faite,
-diag, repare et medias sont sautées (pas d'outil), look aussi (posé par `outils/overlays.py`), motion tant qu'il n'y a pas de motion. Le schéma est défini en un seul endroit, l'en-tête de `outils/video` :
+vidéo commencée sans lui le tire des fichiers : une étape que ses fichiers montrent est faite, motion est sautée tant qu'il
+n'y a pas de motion. `diag`, `repare` et `medias` n'ont aucun outil : OPTIONNELLES, jamais bloquantes, `statut` les affiche
+« optionnelle, pas d'outil » (un ancien `ETAT.json` qui les porte se lit comme avant). L'étalonnage (clé `look`) n'est plus sauté :
+`outils/looks/LOOK.json`, écrit par `look.py fixe`, le montre fait pour toutes les vidéos. Le schéma est défini en un seul endroit, l'en-tête de `outils/video` :
 
 ```json
 {
@@ -120,7 +141,7 @@ diag, repare et medias sont sautées (pas d'outil), look aussi (posé par `outil
   elle attend ton geste (montage, médias, motion, overlays, caption). Les étapes automatiques
   s'écrivent à `true`.
 - Le fichier qui montre chaque étape, comparé à `fait` : `<STEM>.repare.mp4` (repare), `cuts.md`
-  ou `<STEM>.derush.mp4` (montage), rien pour look,
+  ou `<STEM>.derush.mp4` (montage), `outils/looks/LOOK.json` (look, fixé une fois pour toutes),
   `medias/MEDIAS.json` (medias), `<STEM>.motion.mp4` (motion), `<STEM>.overlays.mp4` (overlays),
   `caption.txt` (caption). `diag` et `export` n'ont pas de fichier dans le dossier : `ETAT.json`
   seul les porte (l'export note où il a copié la vidéo et sa sonie). Une étape plus ancienne qu'une étape d'avant est à

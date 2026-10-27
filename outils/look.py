@@ -32,6 +32,22 @@ VERSIONS = {  # lettre : (nom, LUT de Resolve ou None, force par défaut)
 }
 
 
+def disponibles():
+    """Les lettres utilisables : A (neutre) toujours, B à D seulement si leur LUT Film Looks est là."""
+    return {k: v for k, v in VERSIONS.items() if v[1] is None or (FILM / v[1]).is_file()}
+
+
+def exiger(lettre):
+    """La lettre, ou une sortie claire si elle n'existe pas ou si son LUT manque (pas de trace Python)."""
+    if lettre not in VERSIONS:
+        sys.exit(f"lettre inconnue « {lettre} » : {', '.join(VERSIONS)}")
+    if lettre not in disponibles():
+        sys.exit(f"{lettre} ({VERSIONS[lettre][0]}) demande le LUT « {VERSIONS[lettre][1]} » de DaVinci Resolve, "
+                 f"absent de {FILM}. Installe DaVinci Resolve (gratuit), ou export RESOLVE_FILM_LOOKS=<dossier>. "
+                 f"Sans lui, seul A (neutre) marche : {sys.argv[0]} fixe A")
+    return lettre
+
+
 def lire_cube(p):
     lignes = [l.split() for l in Path(p).read_text().splitlines()]
     n = next(int(l[1]) for l in lignes if l and l[0] == "LUT_3D_SIZE")
@@ -168,11 +184,16 @@ def planche(video, temps):
             ).stdout
         )
         temps = [d * 0.3, d * 0.6]
+    dispo = disponibles()
+    absentes = [k for k in VERSIONS if k not in dispo]
+    if absentes:
+        print(f"LUT Film Looks de DaVinci Resolve absents ({FILM}) : planche sans {', '.join(absentes)}. "
+              "Gratuit, à installer pour les looks film.", file=sys.stderr)
     lignes = []
     for t in temps:
         img = image(video, t)
         cases = []
-        for lettre, (nom, _, _) in VERSIONS.items():
+        for lettre, (nom, _, _) in dispo.items():
             c = cv2.resize(
                 (np.clip(transforme(lettre, img), 0, 1) * 255).astype(np.uint8),
                 (405, 720),
@@ -200,7 +221,7 @@ def planche(video, temps):
 
 
 def fixe(lettre, force=None):
-    nom, fichier, f0 = VERSIONS[lettre]
+    nom, fichier, f0 = VERSIONS[exiger(lettre)]
     LOOKS.mkdir(exist_ok=True)
     cube = LOOKS / "look.cube"
     ecrire_cube(cube, f"Look {lettre} {nom}", lettre, force)
@@ -232,10 +253,12 @@ if __name__ == "__main__":
     force = float(a[a.index("--force") + 1]) if "--force" in a else None
     if a and a[0] == "planche":
         p = planche(a[1], [float(x) for x in a[2:]])
-        subprocess.run(["open", "-a", "Preview", str(p)])
+        if shutil.which("open"):  # macOS ; ailleurs, le chemin imprimé suffit
+            subprocess.run(["open", "-a", "Preview", str(p)])
     elif a and a[0] == "fixe":
         fixe(a[1].upper(), force)
     elif a and a[0] == "cube":
+        exiger(a[1].upper())
         ecrire_cube(a[2], f"essai {a[1].upper()}", a[1].upper(), force)
         print(a[2])
     else:

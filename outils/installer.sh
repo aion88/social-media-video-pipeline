@@ -24,7 +24,7 @@ for a in "$@"; do
     *) echo "option inconnue : $a (voir l'en-tête)" >&2; exit 2;;
   esac
 done
-SKILLS="sm-video sm-recherche sm-montage sm-motion derush"
+SKILLS="sm-video sm-recherche sm-montage sm-etalonnage sm-motion sm-soustitres sm-caption sm-export derush"
 MANQUE=0
 
 ok()     { printf '  OK      %s\n' "$1"; }
@@ -100,7 +100,7 @@ if [[ -n "${SFX_DIR:-}" && -d "${SFX_DIR:-}" ]]; then ok "SFX_DIR=$SFX_DIR"
 else echo "  --      SFX_DIR non défini : le motion sort sans bruitages (voir README, section Sounds)"; fi
 LOOKS="${RESOLVE_FILM_LOOKS:-/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Film Looks}"
 if [[ -d "$LOOKS" ]]; then ok "LUT Film Looks de DaVinci Resolve"
-else echo "  --      LUT Film Looks de DaVinci Resolve absents : outils/look.py en a besoin (RESOLVE_FILM_LOOKS), ou \"look\": null"; fi
+else echo "  --      LUT Film Looks de DaVinci Resolve absents (optionnel, gratuit) : sans eux, /sm-etalonnage ne propose que A (neutre). Autre dossier : RESOLVE_FILM_LOOKS"; fi
 
 echo
 if (( MANQUE )); then echo "$MANQUE manque(s). Le reste est en place."; exit 1; fi

@@ -10,14 +10,33 @@ Je filme une prise, sans couper. Claude enlève les silences, les euh et les phr
 
 ## Les étapes
 
+`/sm-video <vidéo>` enchaîne tout : il regarde où en est la vidéo, lance l'étape suivante, s'arrête quand c'est à moi de valider, et reprend là où on en était au prochain appel. Chaque étape a aussi sa skill.
+
 1. Recherche, `/sm-recherche <sujet>`. Claude trouve 3 à 5 sources, un contrepoint, et écrit mes notes. Moi : je lis, je filme.
 2. Montage, `/sm-montage <ma prise>`. Claude coupe les silences, les euh, les faux départs. Moi : je valide les coupes, je retouche phrase par phrase.
-3. Look. Claude sort une planche de 4 étalonnages. Moi : je choisis A, B, C ou D.
-4. Motion, `/sm-motion <vidéo>`. Claude lit mon script, cale chaque effet sur le mot que je prononce, et rend le tout. Moi : je regarde, je valide.
-5. Sous-titres. Claude écrit les idées clés à l'écran. Moi : je valide.
-6. Caption et export. Claude écrit la caption et range la vidéo, la caption et la vignette dans un seul dossier. Moi : je publie.
+3. Étalonnage, `/sm-etalonnage <vidéo>`. Claude sort une planche de looks. Moi : je choisis A, B, C ou D. Une seule fois : le look est repris pour les vidéos suivantes.
+4. Motion, `/sm-motion <vidéo>`, si je le veux. Claude lit mon script, cale chaque effet sur le mot que je prononce, et rend le tout. Moi : je regarde, je valide.
+5. Sous-titres, `/sm-soustitres <vidéo>`. Claude écrit l'accroche et les idées clés à l'écran. Moi : je valide la vidéo.
+6. Caption, `/sm-caption <vidéo>`. Claude écrit le texte et le relit contre ce que j'ai dit. Moi : je relis.
+7. Export, `/sm-export <vidéo>`. Claude range la vidéo, la caption et la vignette dans un seul dossier et vérifie ce qu'il contient. Moi : je publie.
 
-`/sm-video` est la porte d'entrée : il regarde où en est la vidéo et lance l'étape suivante.
+## DaVinci Resolve : optionnel
+
+Le pipeline marche sans. Resolve (la version gratuite suffit) apporte deux choses :
+
+- les looks film de l'étalonnage (B, C et D). Sans lui, la planche ne montre que A, le look neutre ;
+- la retouche manuelle des coupes, via le fichier `.fcpxml` du montage.
+
+Les coupes elles-mêmes sont faites par ffmpeg, pas par Resolve.
+
+## Les effets HyperFrames : où ça marche
+
+- Claude Code dans le terminal : oui, vérifié.
+- Claude Desktop, onglet Code : oui, c'est le même moteur local.
+- Cowork : non vérifié. Le rendu demande Node, Chrome et ffmpeg dans sa machine, et je ne sais pas s'ils y sont.
+- Le chat claude.ai : probablement non. Il n'exécute ni Chrome ni ffmpeg, donc rien ne peut rendre la vidéo.
+
+Installation : `npx skills add heygen-com/hyperframes --all`, plus Node 22 et ffmpeg sur ta machine. DaVinci Resolve reste optionnel.
 
 ## Est-ce que ça marche chez toi ?
 
@@ -28,7 +47,7 @@ Je filme une prise, sans couper. Claude enlève les silences, les euh et les phr
 
 ## HyperFrames, il faut l'installer ?
 
-Non. La skill le lance toute seule. Il te faut Node, ffmpeg et un navigateur Chrome sur ta machine. L'installeur du repo te dit ce qui manque.
+Les skills HyperFrames s'installent avec la commande plus haut. Le rendu, lui, se lance tout seul. Il te faut Node, ffmpeg et un navigateur Chrome sur ta machine. L'installeur du repo te dit ce qui manque.
 
 ## Les 3 questions qu'on me pose
 

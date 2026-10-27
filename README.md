@@ -7,7 +7,8 @@ Skills and notes are written in French (the pipeline was built for French speech
 ## What is in here
 
 ```
-.claude/skills/   sm-video (the door), sm-recherche, sm-montage, derush, sm-motion
+.claude/skills/   sm-video (the whole chain), then one skill per step: sm-recherche, sm-montage (+ derush),
+                  sm-etalonnage, sm-motion, sm-soustitres, sm-caption, sm-export
 .claude/agents/   motion-reviewer (one Sonnet review before render)
 outils/           video (status/validate/export), look.py, overlays.py, plafond.py, deband.py, installer.sh, fonts/
 videos/           one folder per video (media is gitignored), README.md = the spec
@@ -21,7 +22,7 @@ STYLE.md          your tone and bans, filled in once; Claude rereads captions ag
 - `ffmpeg` + `ffprobe`, `python3` (3.10+), `uv`, `node` 22+ (for `npx hyperframes`)
 - [OpenAI Whisper](https://github.com/openai/whisper) on the PATH (`uv tool install openai-whisper`, or `export WHISPER=/path/to/whisper`); `torch` + `torchaudio` for the word alignment
 - Python modules: numpy, opencv-python, pillow, soundfile, fonttools (the installer adds them with `uv`)
-- Optional: DaVinci Resolve (free is enough) for the film-look LUTs read by `outils/look.py` and for hand-editing the cuts via the `.fcpxml` timeline
+- Optional: DaVinci Resolve (free is enough). It brings two things: the film-look LUTs read by `outils/look.py` (without it the colour step only offers A, neutral), and hand-editing of the cuts through the `.fcpxml` timeline. The cuts themselves are made by ffmpeg, not by Resolve
 - Optional: your own sound folder `SFX_DIR` (see Sounds)
 
 ## Install
@@ -37,16 +38,19 @@ Open the folder in Claude Code: the skills are loaded from `.claude/skills/`. Th
 
 ## The commands, in order
 
-`/sm-video <STEM>` is the entry point: it reads where the video stands (`outils/video statut`), runs the next step and stops when it is your turn to validate. One step per session.
+`/sm-video <STEM>` runs the whole chain. It reads where the video stands (`outils/video statut`), calls the skill of the next step in the same session, stops at every validation, and picks up where the video is at the next call. Each step also works on its own:
 
-| # | Command | Your gesture |
-|---|---|---|
-| 1 | `/sm-recherche <topic>` : plain Claude web research (3 to 5 sources, one counterpoint, URLs cited), notes and a teleprompter page | read the notes, film |
-| 2 | `/sm-montage <take>` then `derush export <STEM>` : cuts silences, fillers, false starts; a DaVinci timeline lets you fix any cut | validate the cuts |
-| 3 | `outils/look.py planche <reel.mp4>` then `outils/look.py fixe <letter>` : colour look, once | pick A, B, C or D |
-| 4 | `/sm-motion <STEM>` : HyperFrames motion timed on your words; one `motion-reviewer` pass before render | validate the motion |
-| 5 | `/sm-video <STEM>` : dynamic subtitles (`outils/overlays.py`), then the caption, reread against `STYLE.md` | validate the video and the text |
-| 6 | `outils/video export <STEM> <name>` : `videos/<STEM>/final/` (video, caption, thumbnail) | publish |
+| # | Step | Command | Your gesture |
+|---|---|---|---|
+| 1 | research | `/sm-recherche <topic>`: plain Claude web research (3 to 5 sources, one counterpoint, URLs cited), notes and a teleprompter page | read the notes, film |
+| 2 | cuts | `/sm-montage <take>` then `derush export <STEM>`: cuts silences, fillers, false starts; a DaVinci timeline (optional) lets you fix any cut | validate the cuts |
+| 3 | colour (look) | `/sm-etalonnage <STEM>`: contact sheet of up to 4 looks, then `outils/look.py fixe <letter>`, once. Without DaVinci Resolve only A (neutral) is offered | pick A, B, C or D |
+| 4 | motion, optional | `/sm-motion <STEM>`: HyperFrames motion timed on your words; one `motion-reviewer` pass before render | validate the motion |
+| 5 | subtitles | `/sm-soustitres <STEM>`: hook, then one idea per sentence (`outils/overlays.py`) | validate the video |
+| 6 | caption | `/sm-caption <STEM>`: written, then reread against the transcript and `STYLE.md` | read the text |
+| 7 | export | `/sm-export <STEM>` (`outils/video export`): `videos/<STEM>/final/` (video, caption, thumbnail), contents checked | publish |
+
+`diag`, `repare` and `medias` still exist in `ETAT.json` (old files keep reading) but have no tool: `outils/video statut` shows them as "optionnelle, pas d'outil" and they never block the next step.
 
 Details per step: `videos/README.md` (folders, `ETAT.json`, output spec, platform limits) and each `SKILL.md`.
 
@@ -73,7 +77,7 @@ Status of what is verified: the scripts were extracted from a working private se
 
 Tu parles à la caméra et tu donnes la prise brute à Claude Code. Claude dérushe (silences, euh, faux départs), te laisse valider les coupes, choisit un look, génère un motion HyperFrames calé mot à mot sur ta voix à partir des effets écrits dans ton script, incruste des sous-titres dynamiques, écrit la caption et exporte en 1080x1920. Rien ne se publie tout seul.
 
-Installation : `outils/installer.sh --verifier`, puis `outils/installer.sh`. Point d'entrée : `/sm-video <STEM>`. Remplis `STYLE.md` une fois (ton, interdits) : c'est la seule vérification de voix, Claude y relit chaque caption. Aucune banque de sons n'est livrée : sans `SFX_DIR`, le motion sort sans bruitages.
+Installation : `outils/installer.sh --verifier`, puis `outils/installer.sh`. Point d'entrée : `/sm-video <STEM>`, qui enchaîne toute la chaîne et s'arrête à chaque validation ; chaque étape a aussi sa commande (`/sm-etalonnage`, `/sm-soustitres`, `/sm-caption`, `/sm-export`). DaVinci Resolve est optionnel : il apporte les looks film de l'étalonnage et la retouche manuelle des coupes ; les coupes sont faites par ffmpeg. Remplis `STYLE.md` une fois (ton, interdits) : c'est la seule vérification de voix, Claude y relit chaque caption. Aucune banque de sons n'est livrée : sans `SFX_DIR`, le motion sort sans bruitages.
 
 ## Licence
 
