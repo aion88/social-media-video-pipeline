@@ -12,8 +12,9 @@ sans le réécrire. Le look se fixe UNE fois ; les vidéos suivantes le reprenne
 
 1. `outils/video statut <STEM>`. Le montage doit être exporté : `videos/<STEM>/<STEM>.reel.mp4`
    existe. Sinon : `derush export <STEM>` d'abord.
-2. Look déjà fixé ? `outils/looks/LOOK.json` existe : le lire (lettre, nom, date) et te demander
-   s'il faut le garder. Si oui, l'étape est faite : `outils/video statut <STEM>` le montre, rien d'autre à écrire.
+2. Look déjà fixé ? `outils/looks/LOOK.json` existe : l'étape est FAITE, on l'applique sans te redemander.
+   Dire seulement la lettre en une ligne et passer à la suite. La planche ne se refait que si on demande
+   explicitement un autre look.
 
 ## Faire
 
