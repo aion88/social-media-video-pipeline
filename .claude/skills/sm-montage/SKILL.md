@@ -28,7 +28,9 @@ automatique ne fait pas : **pouvoir rééditer**, parce qu'il ne fait pas un san
    trouver : `ls -t videos/*/NOTES-REPRISE.md | head -3`, prendre celle du sujet (une seule
    candidate récente : la prendre ; plusieurs sujets : demander lequel). Après l'étape 1, copier
    `NOTES-REPRISE.md` et `RECHERCHE.md` dans `videos/<STEM>/` : `/sm-motion` les lit là.
-1. `derush prep "<video>"` (en arrière-plan, ~1.5x la durée).
+1. `derush prep "<video>"` (en arrière-plan, ~1.5x la durée). Prise en anglais (dit par
+   l'utilisateur, ou évident à l'écoute) : ajouter `--lang en`. `derush` absent du PATH :
+   `.claude/skills/derush/scripts/derush.sh` à la place, même arguments.
 2. Étape 6 de `derush` : `derush words <STEM>`, écrire `retraction_cuts.json`.
 2b. **Coupe serrée** (en plus des faux départs) : relire `derush words` contre le sujet de
    `NOTES-REPRISE.md` et lister dans `videos/<STEM>/coupe-serree.md`, une ligne par passage :

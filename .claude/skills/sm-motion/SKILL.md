@@ -40,6 +40,7 @@ fondations, on réécrit les zones et les temps. `example/` montre un brief, une
    ```
 2. **Transcript mot à mot de la vidéo montée** :
    `"$K/scripts/transcribe.sh" "$R/<STEM>.reel.mp4" "$R/motion-work" [durée] [langue, défaut fr]`
+   (mettre `en` pour une prise en anglais, la même langue qu'au montage)
    (~2 min CPU pour 80 s). Sort `aligned.json` + `words.txt` (`début fin mot`). Tous les temps
    viennent de là, jamais estimés. Durée utile : couper le noir de fin s'il y en a
    (`ffmpeg -i <reel> -af silencedetect=n=-45dB:d=2 -f null -`).
