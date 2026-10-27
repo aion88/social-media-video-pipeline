@@ -21,7 +21,9 @@ Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) 
 ## Faire
 
 1. `outils/overlays.py texte <STEM>` : les phrases datées. La première fois, il transcrit la
-   vidéo (environ 1 min). La vidéo par défaut est `<STEM>.reel.mp4`.
+   vidéo (environ 1 min). La vidéo par défaut est `<STEM>.reel.mp4`. Si un motion
+   existe (`<STEM>.motion.mp4`) : soit il porte déjà les sous-titres (motion en overlay, rien à
+   faire ici), soit `"video": "<STEM>.motion.mp4"` dans `overlays.json`, sinon l'export refuse.
 2. Écrire `videos/<STEM>/overlays/overlays.json`, en copiant la forme de `example/overlays.json`
    (le format est aussi dans `outils/overlays.py` lancé sans argument).
    - `accroche` : 2 ou 3 lignes (light 86, medium 140, light italique 46), `fin` environ 5 s.

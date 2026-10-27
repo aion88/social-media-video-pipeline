@@ -503,9 +503,32 @@ def exporter(a):
     finale = next((d / f"{stem}.{k}.mp4" for k in ("overlays", "motion", "reel") if (d / f"{stem}.{k}.mp4").exists()), None)
     if finale is None:
         sys.exit(f"rien à exporter : ni {stem}.overlays.mp4, ni .motion.mp4, ni .reel.mp4")
+    # Un .overlays.mp4 passe avant le motion : il doit être construit SUR le motion, sinon l'export
+    # sortirait la vidéo sans motion sans rien dire (audit du 2026-10-27).
+    motion = d / f"{stem}.motion.mp4"
+    if finale.name.endswith(".overlays.mp4") and motion.exists():
+        try:
+            src = json.loads((d / "overlays" / "overlays.json").read_text(encoding="utf-8")).get("video")
+        except (OSError, ValueError):
+            src = None
+        if src != motion.name or finale.stat().st_mtime < motion.stat().st_mtime:
+            sys.exit(f"{finale.name} n'est pas construit sur {motion.name} (ou plus ancien) : l'export sortirait sans motion. "
+                     f"« \"video\": \"{motion.name}\" » dans overlays/overlays.json puis outils/overlays.py {shlex.quote(stem)}, "
+                     f"ou supprime {finale.name} si le motion porte déjà les sous-titres")
     cap = d / "caption.txt"
     if not cap.exists() or not cap.read_text(encoding="utf-8").strip():
         sys.exit(f"pas de caption.txt : la caption passe avant l'export (/sm-video {shlex.quote(stem)})")
+    verif = SM / "outils" / "verifier.sh"
+    if verif.exists() and subprocess.run([str(verif), str(cap)], capture_output=True).returncode != 0:
+        sys.exit(f"caption.txt ne passe pas {court(verif)} : la corriger avant l'export")
+    vignette = d / f"{stem}.thumbnail.png"
+    if not vignette.exists():
+        sys.exit(f"pas de vignette ({stem}.thumbnail.png) : outils/overlays.py la fait, /sm-motion aussi (image du titre)")
+    if vignette.stat().st_mtime < finale.stat().st_mtime - 600:
+        sys.exit(f"{vignette.name} est plus ancienne que {finale.name} : refais-la depuis la vidéo finale, ou touch {vignette.name} si elle est bonne")
+    look = SM / "outils" / "looks" / "LOOK.json"
+    if look.exists() and not a.look_ok and look.stat().st_mtime > finale.stat().st_mtime:
+        sys.exit(f"le look a changé après {finale.name} ({court(look)}) : refais le rendu, ou --look-ok si le look est déjà dans l'image")
     nom = a.nom[:-4] if a.nom.lower().endswith(".mp4") else a.nom
     if not nom or "/" in nom or nom.startswith("."):
         sys.exit(f"nom refusé : « {a.nom} » (un nom court, sans dossier)")
@@ -524,13 +547,10 @@ def exporter(a):
             subprocess.run(["/usr/bin/trash", str(vieux)], check=True)  # un ancien nom part à la Corbeille, jamais rm
     shutil.copy2(finale, cible)
     shutil.copy2(cap, paquet / "caption.txt")
-    vignette = d / f"{stem}.thumbnail.png"
-    if vignette.exists():
-        shutil.copy2(vignette, paquet / "thumbnail.png")
+    shutil.copy2(vignette, paquet / "thumbnail.png")
     marquer(etat, "export", {"fichier": court(cible), "depuis": finale.name, "lufs": sonie}, valide=True)
     ecrire_etat(d, etat)
-    manque = "" if vignette.exists() else f" ; PAS de vignette ({stem}.thumbnail.png)"
-    print(f"{court(paquet)}/ : {cible.name} ({finale.name}, {sonie} LUFS), caption.txt, thumbnail.png{manque} ; publier reste ton geste")
+    print(f"{court(paquet)}/ : {cible.name} ({finale.name}, {sonie} LUFS), caption.txt, thumbnail.png ; publier reste ton geste")
 
 
 # ---- statut ----
@@ -607,6 +627,7 @@ def main():
     x.add_argument("stem")
     x.add_argument("nom", help="nom court du fichier exporté (sante-mentale-neurones)")
     x.add_argument("--force", action="store_true", help="remplace un export du même nom qui diffère")
+    x.add_argument("--look-ok", action="store_true", help="le look fixé est déjà dans l'image (montage étalonné à la main)")
     a = ap.parse_args()
     {"statut": statut, "valide": valider, "export": exporter}[a.cmd](a)
 

@@ -20,6 +20,9 @@ exporter : renvoyer vers `/sm-soustitres` ou `/sm-caption`.
    `.motion.mp4`, sinon `.reel.mp4`), refuse sans `caption.txt` ou hors -14 LUFS (à 1 LU près), copie
    dans `videos/<STEM>/final/` et écrit `ETAT.json`. Un nom déjà pris qui diffère : un autre nom, ou
    `--force`. Un ancien `.mp4` de `final/` part à la Corbeille.
+   L'export REFUSE aussi (gardes du 2026-10-27) : un `.overlays.mp4` qui n'est pas construit sur
+   le `.motion.mp4` (il sortirait sans motion), une vignette absente ou plus ancienne que la vidéo,
+   un look fixé après la vidéo (`--look-ok` si le look est déjà dans l'image).
 3. Contrôler `final/` :
    ```bash
    ls -l videos/<STEM>/final/
@@ -32,8 +35,8 @@ exporter : renvoyer vers `/sm-soustitres` ou `/sm-caption`.
    - `cmp` ne dit rien (même caption)
    - la caption relue contre `STYLE.md` (il n'y a pas de contrôle automatique).
 
-   Si la vignette manque (`export` écrit « PAS de vignette ») : `<STEM>.thumbnail.png` est écrite par
-   le rendu des sous-titres, donc refaire `outils/overlays.py <STEM>`, puis relancer l'export.
+   Vignette refusée : `<STEM>.thumbnail.png` vient du rendu des sous-titres (`outils/overlays.py <STEM>`)
+   ou, pour un motion, de l'image du titre d'ouverture (`/sm-motion`). La refaire, puis relancer l'export.
 4. Ouvrir ce qui part : `open -a "QuickTime Player" videos/<STEM>/final/<nom-court>.mp4`.
 
 ## S'arrêter

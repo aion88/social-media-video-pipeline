@@ -135,6 +135,23 @@ fondations, on réécrit les zones et les temps. `example/` montre un brief, une
   droits : OFL ou Apache), les zones. Pour le charger depuis `STYLE.md`, dis-le à Claude à
   l'étape 3.
 
+## Mode overlay (demandé le 2026-10-25, refait le 2026-10-27)
+
+Quand elle dit « en overlay » : pas de split, sa vidéo PLEIN CADRE et tout par-dessus, sous-titres
+et titre d'accroche compris (le motion les porte, pas de `/sm-soustitres` après). Exemple : la structure ci-dessous.
+
+- `index.html` : `<video id="reel">` plein cadre (`assets/reel.mp4`, `data-has-audio="true"`), un
+  `div.fx` par effet (`data-composition-src="compositions/<effet>.html"`, `data-start` = le mot dit),
+  `compositions/titles.html` sur toute la durée (accroche ~7 s, puis une idée par phrase, style
+  `outils/overlays.py` : Gotham, feutre sauge, centre y 1300), quelques `<audio>` de la banque.
+- Sous-titres : générés depuis une liste (texte, début, fin) recalée sur `words.txt` ; SES mots exacts.
+- Place : effets en haut (y 130-430, au-dessus de la tête) ou en carte en bas (y 1440+), jamais sur
+  le visage ni sur la bande des sous-titres (y 1210-1390). Texte sur le miroir clair : encre, ou
+  une pastille sauge.
+- Un montage déjà étalonné (son export) ne reprend pas le look. Sortie : rendu dans `_work/`,
+  `loudnorm` à -14, `<STEM>.motion.mp4`, vignette = image du titre, yeux ouverts.
+- `hyperframes snapshot` envoie les images à Gemini pour les décrire : le savoir.
+
 ## Pièges mesurés
 
 - `.split` : espace insécable ` `, sinon les mots se collent.
