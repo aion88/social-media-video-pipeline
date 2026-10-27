@@ -31,6 +31,8 @@ sans le réécrire. Le look se fixe UNE fois ; les vidéos suivantes le reprenne
 4. Tu choisis la lettre. Puis `outils/look.py fixe <lettre>` (`--force 0.6` pour atténuer le look,
    de 0 à 1). Écrit `outils/looks/look.cube` et `outils/looks/LOOK.json`. Une lettre dont le LUT manque est
    refusée avec la raison, pas d'erreur Python.
+   Si DaVinci Resolve est installé, `fixe` copie aussi `look.cube` dans le dossier LUT de Resolve
+   (`LUT/Perso/look.cube`), pour l'avoir dans Resolve. Le dire à la personne.
 4b. Pour un essai sans rien fixer : `outils/look.py cube <lettre> videos/<STEM>/look/essai-<lettre>.cube`.
 
 ## S'arrêter

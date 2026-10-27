@@ -213,10 +213,10 @@ PY
   cmd_apercu
 }
 
-# L'aperçu à valider porte le look fixé (outils/looks/kaizn.cube) : on valide l'image qui sera
+# L'aperçu à valider porte le look fixé (outils/looks/look.cube) : on valide l'image qui sera
 # publiée, pas la caméra brute. Export ne le lit pas, il reste un fichier de relecture.
 cmd_apercu() {
-  local cube="$SM/outils/looks/kaizn.cube"
+  local cube="$SM/outils/looks/look.cube"
   [[ -f "$cube" ]] || { log "aperçu : aucun look fixé, $STEM.derush.mp4 est l'image brute"; return 0; }
   ffmpeg -loglevel error -y -i "$OUT/$STEM.derush.mp4" -vf "lut3d=$cube,scale=1080:1920" \
     -c:v libx264 -crf 20 -preset fast -c:a copy "$OUT/$STEM.apercu-look.mp4" \

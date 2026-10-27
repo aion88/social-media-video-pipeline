@@ -25,7 +25,7 @@ STYLE.md          your tone and bans, filled in once; Claude rereads captions ag
 - Python modules: numpy, opencv-python, pillow, soundfile, fonttools (the installer adds them with `uv`)
 - Optional: DaVinci Resolve (free is enough). It brings two things: the film-look LUTs read by `outils/look.py` (without it the colour step only offers A, neutral), and hand-editing of the cuts through the `.fcpxml` timeline. The cuts themselves are made by ffmpeg, not by Resolve
 - Optional: your own sound folder `SFX_DIR` (see Sounds)
-- First run downloads about 2.5 GB (measured on a Mac): the Whisper model `large-v3-turbo` (1.5 GB, at your first cut), torch (~330 MB, at install) and the headless Chrome of HyperFrames (~200 to 350 MB, at your first render). After that it all runs offline
+- First run downloads about 2.5 GB (measured on a Mac): the Whisper model `large-v3-turbo` (1.5 GB, at your first cut), torch (~330 MB, at install) and the headless Chrome of HyperFrames (~200 to 350 MB, at your first render). After that it runs offline, except the animation library (GSAP) that the motion compositions load from a CDN at render time
 - Tested on macOS (Apple Silicon). Linux should work (`xdg-open` instead of `open`) but has not been tested
 
 ## Install
