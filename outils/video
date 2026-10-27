@@ -79,7 +79,7 @@ TOLERANCE = 60  # s : l'écrivain pose ETAT.json juste après les fichiers de so
 # pose pas le look : LOOK.json (outils/looks/), écrit par look.py fixe, le montre. diag et export n'ont aucun fichier dans le dossier : ETAT.json seul.
 PREUVES = {
     "repare": ("{stem}.repare.mp4",),
-    "montage": ("cuts.md", "{stem}.derush.mp4"),
+    "montage": ("cuts.md", "{stem}.derush.mp4", "{stem}.reel.mp4"),
     "medias": ("medias/MEDIAS.json",),
     "motion": ("{stem}.motion.mp4",),
     "overlays": ("{stem}.overlays.mp4",),
@@ -357,7 +357,7 @@ def recaler(d, stem, etat):
             dit = f"ETAT.json dit {etapes[e]['fait']}" if etapes[e]["fait"] else "pas dans ETAT.json"
             retards.append(f"{e} ({nom} du {datetime.fromtimestamp(t):%Y-%m-%d %H:%M}, {dit})")
             etapes[e] = {"fait": datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds"),
-                         "mesures": {"recale": nom}, "valide": e not in A_VALIDER}
+                         "mesures": {"recale": nom}, "valide": e not in A_VALIDER or nom.endswith(".reel.mp4")}  # .reel.mp4 = derush export, donc coupes déjà validées
     # Le look est fixé une fois pour toutes : LOOK.json le prouve pour chaque vidéo, sans date à comparer.
     l = etapes["look"]
     # Un ancien ETAT.json la marque « sautée » (posée par overlays.py) : sans LOOK.json, elle redevient à faire.
