@@ -30,6 +30,14 @@ STYLE.md          your tone and bans, filled in once; Claude rereads captions ag
 
 ## Install
 
+Easiest: paste this to Claude Code (terminal, or the Desktop app):
+
+```
+Install this pipeline: https://github.com/aion88/social-media-video-pipeline
+```
+
+Claude clones it, follows `CLAUDE.md`, installs HyperFrames and the tools, and tells you what is missing. By hand:
+
 ```bash
 git clone https://github.com/aion88/social-media-video-pipeline.git && cd social-media-video-pipeline
 outils/installer.sh --verifier   # prints OK / MANQUE lines, touches nothing
