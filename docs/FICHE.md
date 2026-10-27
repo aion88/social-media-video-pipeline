@@ -29,16 +29,7 @@ Le pipeline marche sans. Resolve (la version gratuite suffit) apporte deux chose
 
 Les coupes elles-mêmes sont faites par ffmpeg, pas par Resolve.
 
-## Les effets HyperFrames : où ça marche
-
-- Claude Code dans le terminal : oui, vérifié.
-- Claude Desktop, onglet Code : oui, c'est le même moteur local.
-- Cowork : non vérifié. Le rendu demande Node, Chrome et ffmpeg dans sa machine, et je ne sais pas s'ils y sont.
-- Le chat claude.ai : probablement non. Il n'exécute ni Chrome ni ffmpeg, donc rien ne peut rendre la vidéo.
-
-Installation : `npx skills add heygen-com/hyperframes --all`, plus Node 22 et ffmpeg sur ta machine. DaVinci Resolve reste optionnel.
-
-## Est-ce que ça marche chez toi ?
+## Où ça marche
 
 - Claude Code dans le terminal : oui, c'est comme ça que je l'utilise.
 - Claude Desktop, onglet Code : oui, c'est le même Claude Code, en local sur ta machine.
@@ -47,7 +38,7 @@ Installation : `npx skills add heygen-com/hyperframes --all`, plus Node 22 et ff
 
 ## HyperFrames, il faut l'installer ?
 
-Les skills HyperFrames s'installent avec la commande plus haut. Le rendu, lui, se lance tout seul. Il te faut Node, ffmpeg et un navigateur Chrome sur ta machine. L'installeur du repo te dit ce qui manque.
+Oui, les skills : `npx skills add heygen-com/hyperframes --all`. Le rendu, lui, se lance tout seul. Il te faut Node 22, ffmpeg et Chrome sur ta machine. L'installeur du repo te dit ce qui manque.
 
 ## Les 3 questions qu'on me pose
 
