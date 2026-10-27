@@ -81,6 +81,10 @@ puis relire ses bornes contre `words`.
 - **Un trou marqué PAROLE DANS LE TROU** par `gap_check` (fin de `prep`) : écouter la fenêtre.
   Si c'est un faux départ, la coupe est bonne. Si c'est du contenu, retirer ce trou de
   `_work/gap_cuts.json` avant `render`.
+- **Un euh, un mmh CITÉ est du contenu.** « les silences, les mmh », « surtout sur les euh » :
+  le mot est l'objet de la phrase, il reste. Après « les », « des », « un », « sur les » devant un
+  euh/mmh/hum, écouter et retirer le trou qui le couvre. Ne jamais traiter « sur les » comme un
+  faux départ : la phrase finit sur le euh. (2026-10-27, A001_10272011_C008.)
 - **Faux départ fondu par whisper** : whisper peut n'écrire qu'une fois une phrase dite deux
   fois. Cas mesuré : « je t'en mets… je vais mettre » transcrit « je vais mettre ». Une phrase qui
   sonne bancale à un raccord dans la sortie = retranscrire la source mot par mot à cet endroit.
