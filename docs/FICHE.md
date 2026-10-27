@@ -32,7 +32,8 @@ Les coupes elles-mêmes sont faites par ffmpeg, pas par Resolve.
 ## Où ça marche
 
 - Claude Code dans le terminal : oui, c'est comme ça que je l'utilise.
-- Claude Desktop, onglet Code : oui, c'est le même Claude Code, en local sur ta machine.
+- Claude Desktop, onglet Code : oui, c'est le même Claude Code, en local sur ta machine. Le chat de l'app, lui, ne rend pas de vidéo.
+- Cowork, pour les effets HyperFrames : sa machine a déjà Node 22 et ffmpeg, et il installe des plugins. Le navigateur de rendu se télécharge au premier rendu ; s'il est bloqué, `npx hyperframes cloud render` rend chez HeyGen (compte HeyGen, payant au crédit). Pour la chaîne entière, avec le dérush et la transcription, prends Claude Code.
 - Claude Code sur le web : possible, mais il faut envoyer ta vidéo brute dans la machine distante et y installer la transcription. Lourd.
 - Le chat claude.ai : non. Pas de terminal, pas de rendu vidéo.
 
