@@ -1,4 +1,4 @@
-# claude-video-pipeline
+# Social Media Video Pipeline
 
 You talk to the camera and hand the raw take to Claude Code. Claude derushes it (cuts silences, fillers, false starts), lets you validate the cuts, picks a colour look, generates motion graphics with [HyperFrames](https://github.com/heygen-com/hyperframes) (HTML rendered to video) timed word by word on your voice from the effects you wrote in your script, burns dynamic subtitles, writes the caption and exports a vertical 1080x1920 video. Nothing is ever published for you.
 
@@ -28,7 +28,7 @@ STYLE.md          your tone and bans, filled in once; Claude rereads captions ag
 ## Install
 
 ```bash
-git clone <this repo> && cd claude-video-pipeline
+git clone https://github.com/aion88/social-media-video-pipeline.git && cd social-media-video-pipeline
 outils/installer.sh --verifier   # prints OK / MANQUE lines, touches nothing
 outils/installer.sh              # installs the light python modules via uv
 outils/installer.sh --lier       # optional: link the skills into ~/.claude/skills and derush into ~/.local/bin
