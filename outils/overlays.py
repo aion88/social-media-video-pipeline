@@ -16,7 +16,7 @@ overlays.json (exemple complet : example/overlays.json) :
   {"video": "IMG_4640.reel.mp4",     le montage exporté ; absent = <STEM>.reel.mp4
    "look": "look/essai-D.cube",      chemin depuis le dossier ; null = aucun ;
                                      absent = outils/looks/look.cube s'il est fixé
-   "couleur": "blanc", "y": 1300,    blanc ou noir ; centre du texte (défaut 1300, sous le menton)
+   "couleur": "blanc", "y": 1150,    blanc ou noir ; centre du texte (défaut 1150 : zone sûre Insta/TikTok, y 420-1250)
    "polices": {"medium": "/chemin/Ma-Medium.ttf", "book": "...", "ita": "..."},   facultatif
    "accroche": {"lignes": [["comment préserver", "book", 86], ["ta concentration", "medium", 140],
                            ["*en bossant avec l'IA", "ita", 46, 150]], "fin": 5.1},
@@ -31,10 +31,10 @@ import numpy as np
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
 
 W, H, IPS = 1080, 1920, 30
-Y0, HC = 1000, 600  # le calque texte couvre y 1000 à 1600
+Y0, HC = 850, 600  # le calque texte couvre y 850 à 1450
 REPOS, ACCROCHE_Y = (
-    1300,
-    1300,
+    1150,
+    1100,
 )  # centres : sous le menton (bas du visage à 953, p90 1002)
 FONTS = Path(__file__).resolve().parent / "fonts"  # Inter Display, licence OFL, redistribuable
 POLICE = {

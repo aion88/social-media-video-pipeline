@@ -148,10 +148,11 @@ et titre d'accroche compris (le motion les porte, pas de `/sm-soustitres` après
 - `index.html` : `<video id="reel">` plein cadre (`assets/reel.mp4`, `data-has-audio="true"`), un
   `div.fx` par effet (`data-composition-src="compositions/<effet>.html"`, `data-start` = le mot dit),
   `compositions/titles.html` sur toute la durée (accroche ~7 s, puis une idée par phrase, style
-  `outils/overlays.py` : Gotham, feutre sauge, centre y 1300), quelques `<audio>` de la banque.
+  `outils/overlays.py` : Gotham, feutre sauge, centre y 1150), quelques `<audio>` de la banque.
 - Sous-titres : générés depuis une liste (texte, début, fin) recalée sur `words.txt` ; SES mots exacts.
-- Place : effets en haut (y 130-430, au-dessus de la tête) ou en carte en bas (y 1440+), jamais sur
-  le visage ni sur la bande des sous-titres (y 1210-1390). Texte sur le miroir clair : encre, ou
+- Place : TOUT entre y 420 et y 1250 (zone sûre : le fil Insta coupe en 4:5, les grilles en 3:4,
+  l'interface couvre le bas). Effets en bandeau compact y 440-640 (front, cheveux), sous-titres
+  y 1060-1250, rien au-dessus de y 420 ni en dessous de y 1250. Centré, marges 90 px. Texte sur le miroir clair : encre, ou
   une pastille sauge.
 - Un montage déjà étalonné (son export) ne reprend pas le look. Sortie : rendu dans `_work/`,
   `loudnorm` à -14, `<STEM>.motion.mp4`, vignette = image du titre, yeux ouverts.

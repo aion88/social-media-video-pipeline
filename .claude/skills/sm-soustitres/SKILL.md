@@ -15,7 +15,8 @@ Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) 
 - surlignage discret (couleur `SURLIGNE` dans `overlays.py`), texte encre ;
 - entrée en fondu avec 10 px de montée, sortie en fondu sur place : pas de parallaxe, pas de
   sortie par le haut, une seule idée à l'écran ;
-- sous le menton (centre y 1300), jamais collé au visage ;
+- dans la zone sûre Instagram/TikTok (centre y 1150, jamais sous y 1250 ni au-dessus de y 420,
+  `_kb/ratios-instagram-tiktok.md` côté privé), jamais collé au visage ;
 - Inter Display Medium et Light (OFL, `outils/fonts/`) ; ta propre police via `polices`.
 
 ## Faire
