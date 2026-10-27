@@ -360,9 +360,13 @@ def recaler(d, stem, etat):
                          "mesures": {"recale": nom}, "valide": e not in A_VALIDER}
     # Le look est fixé une fois pour toutes : LOOK.json le prouve pour chaque vidéo, sans date à comparer.
     l = etapes["look"]
-    if not l["fait"] and not l["mesures"].get("saute") and LOOK_JSON.exists():
-        etapes["look"] = {"fait": datetime.fromtimestamp(quand(LOOK_JSON)).astimezone().isoformat(timespec="seconds"),
-                          "mesures": {"recale": "outils/looks/LOOK.json"}, "valide": True}
+    # Un ancien ETAT.json la marque « sautée » (posée par overlays.py) : sans LOOK.json, elle redevient à faire.
+    if not l["fait"] or l["mesures"].get("saute"):
+        if LOOK_JSON.exists():
+            etapes["look"] = {"fait": datetime.fromtimestamp(quand(LOOK_JSON)).astimezone().isoformat(timespec="seconds"),
+                              "mesures": {"recale": "outils/looks/LOOK.json"}, "valide": True}
+        else:
+            etapes["look"] = {"fait": None, "mesures": {}, "valide": False}
     # Une étape plus ancienne qu'une étape d'avant est périmée : un re-montage refait l'export.
     avant = None
     for e in ETAPES:

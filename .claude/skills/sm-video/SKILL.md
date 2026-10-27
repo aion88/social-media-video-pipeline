@@ -19,7 +19,8 @@ en est : l'état vit dans `videos/<STEM>/` et `ETAT.json`, pas dans la session.
    tu valides.
 4. Ton OK : `outils/video valide <STEM> <étape>`. Relancer le statut et repartir en 2. Dès que la
    suite demande un geste à toi (filmer, choisir une lettre, publier), le dire et s'arrêter.
-5. Terminé quand `statut` dit « à publier ». Publier est ton geste.
+5. Terminé quand `ETAT.json` existe et que `statut` dit « finie, à publier ». Sans `ETAT.json`, la vidéo
+   n'est pas finie : `outils/video valide <STEM> montage` d'abord. Publier est ton geste.
 
 ## Les étapes, dans l'ordre
 

@@ -245,7 +245,7 @@ def fixe(lettre, force=None):
         shutil.copy(cube, RESOLVE_PERSO / "look.cube")
         print("copie dans", RESOLVE_PERSO / "look.cube")
     except OSError as e:
-        print("copie Resolve sautée :", e)
+        print("copie Resolve sautée (DaVinci Resolve absent)")
 
 
 if __name__ == "__main__":

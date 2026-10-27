@@ -25,6 +25,8 @@ Réglages par défaut de `outils/overlays.py` (à ajuster dans `overlays.json`) 
 2. Écrire `videos/<STEM>/overlays/overlays.json`, en copiant la forme de `example/overlays.json`
    (le format est aussi dans `outils/overlays.py` lancé sans argument).
    - `accroche` : 2 ou 3 lignes (light 86, medium 140, light italique 46), `fin` environ 5 s.
+     La 3e ligne en italique est une petite note : son `*` de tête s'affiche tel quel, l'enlever
+     si tu n'en veux pas.
    - `idees` : `["texte affiché", "phrase dite"]`. Le texte affiché fait 2 à 6 mots pris dans ce
      que tu dis, avec 1 à 3 `**mots clés**`. ` / ` coupe la ligne en deux. `"3|mes photos"`
      marque un chapitre. La phrase dite reprend les mots exacts du transcript : c'est elle qui cale

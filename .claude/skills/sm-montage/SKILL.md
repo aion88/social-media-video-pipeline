@@ -49,7 +49,7 @@ automatique ne fait pas : **pouvoir rééditer**, parce qu'il ne fait pas un san
    `derush export <STEM> --from <export-resolve.mp4>` pour la même spec de sortie. Dans les
    deux cas `/sm-motion` prend `<STEM>.reel.mp4`. Tu peux aussi monter seul, dans n'importe quel
    logiciel : même chemin (`--from`). `/sm-motion` ne démarre que sur ce fichier validé.
-   Suite : « /sm-video <STEM> dans une session neuve » (sous-titres, caption, export).
+   Suite : `/sm-video <STEM>` (la chaîne continue : étalonnage, sous-titres, caption, export).
 
 ## Boucle de correction par phrase
 
