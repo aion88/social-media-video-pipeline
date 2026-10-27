@@ -86,7 +86,7 @@ fondations, on réécrit les zones et les temps. `example/` montre un brief, une
    lettre ni un clic par déplacement du point. `master` 0,55 : piste ~-26 LUFS sous la voix à -14
    (mesurer, ebur128).
 7. **Vérifier**, depuis `$R/motion/` : `npm run check` (0 erreur), puis
-   `npx --yes hyperframes@0.8.140 snapshot --at <milieu de chaque zone>` et REGARDER : texte
+   `npx --yes hyperframes@0.8.140 snapshot --describe false --at <milieu de chaque zone>` et REGARDER : texte
    entier, rien de coupé, visage visible, rien dans les 120 px du haut (barre de l'application),
    rien en bas à droite de la zone visage (interface).
 8. **Revue unique (goût + orthographe), UNE fois, AVANT le rendu.** Un seul sous-agent
@@ -111,6 +111,11 @@ fondations, on réécrit les zones et les temps. `example/` montre un brief, une
     du noir). Ouvrir le MP4. Le rendu se vérifie par ce script et ton regard, pas par un
     sous-agent. Un re-rendu après une retouche ne relance la revue de l'étape 8 que si des TEXTES
     ont changé, et alors sur les zones touchées seulement.
+10b. **Son et vignette, toujours** (sinon `outils/video export` refuse) : rendre dans `_work/`, puis
+    `ffmpeg -i _work/motion-brut.mp4 -af loudnorm=I=-14:TP=-1.5 -c:v copy -c:a aac "<STEM>.motion.mp4"`
+    (-14 LUFS à 1 LU près). Vignette : l'image du titre d'ouverture, yeux ouverts,
+    `ffmpeg -ss <t> -i <STEM>.motion.mp4 -frames:v 1 <STEM>.thumbnail.png`. Montrer 6 à 8 instants du
+    titre côte à côte, la personne choisit. Puis caption (`/sm-caption`) et `/sm-export`.
 11. **Caption** : si la vidéo promet quelque chose « en caption » (une structure, une liste),
     l'écrire dans `videos/<STEM>/CAPTION.md`, même noms et même ordre qu'à l'écran, valeurs à
     remplir entre crochets. Relire contre `STYLE.md`. Moins de 2 200 signes (Instagram).
@@ -150,7 +155,8 @@ et titre d'accroche compris (le motion les porte, pas de `/sm-soustitres` après
   une pastille sauge.
 - Un montage déjà étalonné (son export) ne reprend pas le look. Sortie : rendu dans `_work/`,
   `loudnorm` à -14, `<STEM>.motion.mp4`, vignette = image du titre, yeux ouverts.
-- `hyperframes snapshot` envoie les images à Gemini pour les décrire : le savoir.
+- `hyperframes snapshot` envoie les images à Gemini dès que `GEMINI_API_KEY` existe : toujours
+  `--describe false`. On regarde les images soi-même, l'envoi n'apporte rien.
 
 ## Pièges mesurés
 
