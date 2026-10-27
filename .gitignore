@@ -1,0 +1,20 @@
+# media
+*.mov
+*.MOV
+*.mp4
+*.m4v
+*.wav
+*.mp3
+
+# regenerable work
+_work/
+motion-work/
+snapshots/
+__pycache__/
+node_modules/
+.ruff_cache/
+*.pyc
+.DS_Store
+
+# your look, per machine
+outils/looks/

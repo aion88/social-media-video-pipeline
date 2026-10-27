@@ -1,0 +1,20 @@
+{
+ "video": "habits_take2.reel.mp4",
+ "look": null,
+ "couleur": "blanc",
+ "accroche": {
+  "lignes": [
+   ["trois habitudes", "book", 86],
+   ["pour tes notes", "medium", 140],
+   ["*qui servent vraiment", "ita", 46, 150]
+  ],
+  "fin": 5.1
+ },
+ "idees": [
+  ["une **date** / sur chaque note", "une date sur chaque note"],
+  ["1|un seul **endroit**", "numéro un un seul endroit"],
+  ["tout au **même** endroit", "tout au même endroit"],
+  ["**relire** le dimanche", "relire le dimanche"],
+  ["10 **minutes** suffisent", "dix minutes suffisent"]
+ ]
+}

@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>Motion template, STYLE-EXAMPLE</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Inter Display"; src: url("assets/fonts/InterDisplay-Medium.woff2") format("woff2"); font-weight: 500; }
+      @font-face { font-family: "Inter Display"; src: url("assets/fonts/InterDisplay-Light.woff2") format("woff2"); font-weight: 300; }
+      @font-face { font-family: "Caveat"; src: url("assets/fonts/Caveat-SemiBold.woff2") format("woff2"); font-weight: 600; }
+      @font-face { font-family: "JetBrains Mono"; src: url("assets/fonts/JetBrainsMono-Medium.woff2") format("woff2"); font-weight: 500; }
+      /* STYLE-EXAMPLE : change ces 5 variables pour changer toute la palette.
+         noir, beige, bleu ; le vert pale ne sert qu'a la main : notes, traits, surligneur
+         (--vert-rgb = le meme vert en R, G, B, pour le surligneur translucide) */
+      :root { --noir: #121212; --beige: #efe8dc; --bleu: #3d7bd9; --vert: #b7c6b5; --vert-rgb: 183, 198, 181; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--noir); }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--noir); }
+
+      #panel { position: absolute; left: 0; top: 0; width: 1080px; height: 980px; overflow: hidden; background: var(--noir); }
+      #world { position: absolute; left: 0; top: 0; width: 3500px; height: 4400px; transform-origin: 0 0; background: var(--noir); }
+      .zone { position: absolute; width: 1080px; height: 980px; }
+      .zone .bg { position: absolute; left: -44px; top: -44px; width: 1168px; height: 1068px; }
+      .beige { color: var(--noir); } .beige .bg { background: var(--beige); }
+      .noir { color: var(--beige); } .noir .bg { background: var(--noir); }
+      .bleu { color: var(--beige); } .bleu .bg { background: var(--bleu); }
+
+      .h { position: absolute; font-family: "Inter Display", sans-serif; font-weight: 500; letter-spacing: -0.04em; line-height: 1; white-space: nowrap; }
+      .h.l { font-weight: 300; letter-spacing: -0.025em; }
+      .ch { display: inline-block; }
+      .acc { color: var(--bleu); }
+      .k { position: absolute; font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 26px; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; }
+      .beige .k { color: var(--noir); } .noir .k, .bleu .k { color: var(--beige); }
+      .hand { position: absolute; font-family: "Caveat", cursive; font-weight: 600; font-size: 58px; line-height: 1; white-space: nowrap; color: var(--bleu); }
+      .rule { position: absolute; height: 2px; background: currentColor; transform-origin: left center; }
+
+      svg.draw { position: absolute; overflow: visible; }
+      svg.draw path { fill: none; stroke: var(--bleu); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .bleu svg.draw path { stroke: var(--vert); }
+      .noir svg.draw path { stroke: var(--vert); }
+      .noir .hand { color: var(--vert); }
+      .beige .hand { background: linear-gradient(transparent 62%, rgba(var(--vert-rgb), 0.85) 62%, rgba(var(--vert-rgb), 0.85) 90%, transparent 90%); padding: 0 6px; }
+      .mark { position: absolute; background: var(--vert); border-radius: 6px 16px 8px 14px; transform-origin: left center; }
+
+      /* l'index des 10 blocs */
+      .ln { position: absolute; left: 0; height: 64px; }
+      .ln b { position: absolute; left: 80px; top: 16px; font-family: "Inter Display", sans-serif; font-weight: 300; font-size: 34px; color: var(--noir); }
+      .ln > span { position: absolute; left: 166px; top: 2px; font-family: "Inter Display", sans-serif; font-weight: 500; font-size: 56px; letter-spacing: -0.03em; color: var(--noir); white-space: nowrap; }
+      #cmt { position: absolute; left: 160px; font-size: 46px; }
+      #big { position: absolute; right: 64px; top: 770px; font-family: "Inter Display", sans-serif; font-weight: 300; font-size: 180px; letter-spacing: -0.06em; line-height: 1; color: var(--bleu); }
+
+      #trails { position: absolute; left: 0; top: 0; overflow: visible; }
+      #trails path { fill: none; stroke: var(--bleu); stroke-width: 3; stroke-linecap: butt; opacity: 0; }
+      #dot { position: absolute; left: -20px; top: -20px; width: 40px; height: 40px; border-radius: 50%; background: var(--bleu); }
+      #bye { position: absolute; inset: 0; }
+
+      #seam { position: absolute; left: 0; top: 980px; width: 1080px; height: 70px; background: var(--noir); }
+      #prog { position: absolute; left: 0; width: 1080px; top: 33px; height: 4px; background: var(--bleu); transform-origin: left center; transform: scaleX(0); }
+
+      #face { position: absolute; left: 0; top: 1050px; width: 1080px; height: 870px; overflow: hidden; background: var(--noir); }
+      #face video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="79.25" data-width="1080" data-height="1920">
+      <div id="face">
+        <video id="facevid" class="clip" src="assets/face.mp4" playsinline data-has-audio="true" data-start="0" data-duration="79.25" data-track-index="0"></video>
+      </div>
+      <audio id="sfx" class="clip" src="assets/sfx.wav" data-start="0" data-duration="79.25" data-volume="1" data-track-index="3"></audio>
+
+      <div id="panel" class="clip" data-start="0" data-duration="79.25" data-track-index="2">
+        <div id="world" data-layout-allow-overflow>
+          <!-- Z1 accroche -->
+          <div class="zone beige" id="z1" style="left: 0; top: 0">
+            <div class="bg"></div>
+            <div class="k" id="s1-k" style="left: 64px; top: 160px">comment faire</div>
+            <div class="h split" id="s1-a" style="left: 58px; top: 236px; font-size: 156px">du motion</div>
+            <div class="h" style="left: 58px; top: 412px; font-size: 156px"><span class="split" id="s1-b">avec </span><span class="split acc" id="s1-c">Claude</span></div>
+            <div class="mark" id="s1-m" style="left: 420px; top: 676px; width: 349px; height: 46px; transform: rotate(-1deg)"></div>
+            <div class="h l" id="s1-q" style="left: 64px; top: 660px; font-size: 56px">qui ressemble à quelque chose ?</div>
+            <svg class="draw" id="s1-u" style="left: 424px; top: 718px" width="380" height="30"><path d="M4 14 C 80 4, 160 22, 240 10 S 340 16, 374 8" /></svg>
+          </div>
+
+          <!-- Z2 la reponse -->
+          <div class="zone noir" id="z2" style="left: 0; top: 1060px">
+            <div class="bg"></div>
+            <div class="k" id="s2-k" style="left: 90px; top: 160px">la réponse, en une phrase</div>
+            <div class="h l split" id="s2-a" style="left: 58px; top: 320px; font-size: 140px">un prompt</div>
+            <div class="h acc split" id="s2-b" style="left: 58px; top: 480px; font-size: 140px">qualitatif.</div>
+            <svg class="draw" id="s2-ar" style="left: 560px; top: 680px" width="130" height="130"><path d="M120 120 C 70 115, 30 80, 20 14 M20 14 L6 40 M20 14 L40 34" /></svg>
+            <div class="hand" id="s2-n" style="left: 700px; top: 800px; transform: rotate(-5deg)">de rien.</div>
+          </div>
+
+          <!-- Z3 deux choses -->
+          <div class="zone beige" id="z3" style="left: 1160px; top: 1060px">
+            <div class="bg"></div>
+            <div class="k" id="s3-k" style="left: 90px; top: 160px">une différence entre</div>
+            <div class="h l acc" id="s3-2" style="left: 40px; top: 170px; font-size: 560px; letter-spacing: -0.06em">2</div>
+            <div class="h split" id="s3-ch" style="left: 420px; top: 330px; font-size: 150px">choses</div>
+            <div class="h l" id="s3-q" style="left: 424px; top: 520px; font-size: 50px">qui ont eu pas mal de</div>
+            <div class="h l" id="s3-hy" style="left: 424px; top: 590px; font-size: 50px"><span style="font-weight: 500">hype</span><span style="margin-left: 26px">dernièrement</span></div>
+            <svg class="draw" id="s3-c" style="left: 396px; top: 566px; transform: scaleX(1.17); transform-origin: 0 0" width="150" height="90"><path d="M20 40 C 18 12, 120 4, 138 30 C 152 56, 90 82, 40 74 C 8 68, 6 40, 30 22" /></svg>
+          </div>
+
+          <!-- Z4 les deux outils : index suisse, notes a la main -->
+          <div class="zone noir" id="z4" style="left: 1160px; top: 2120px">
+            <div class="bg"></div>
+            <div class="h l acc" id="c1-n" style="left: 64px; top: 150px; font-size: 60px">01</div>
+            <div class="h" style="left: 60px; top: 226px; font-size: 120px"><span class="split" id="c1-a">Claude </span><span class="split acc" id="c1-b">Motion</span></div>
+            <div class="hand" id="c1-p1" style="left: 80px; top: 380px">produit Anthropic</div>
+            <div class="hand" id="c1-p2" style="left: 80px; top: 446px">réservé Team + Enterprise</div>
+            <svg class="draw" id="c1-u" style="left: 76px; top: 500px" width="560" height="24"><path d="M4 12 C 120 4, 260 18, 380 8 S 520 14, 552 10" /></svg>
+            <div class="rule" id="c-r" style="left: 64px; top: 560px; width: 952px; opacity: 0.35"></div>
+            <div class="h l acc" id="c2-n" style="left: 64px; top: 590px; font-size: 60px">02</div>
+            <div class="h" style="left: 60px; top: 666px; font-size: 120px"><span class="split" id="c2-a">Opus </span><span class="split acc" id="c2-b">5.5</span></div>
+            <div class="hand" id="c2-p1" style="left: 80px; top: 820px">écrit le code,</div>
+            <div class="hand" id="c2-p2" style="left: 80px; top: 886px">HyperFrames en fait la vidéo</div>
+            <div class="hand" id="c2-p3" style="left: 640px; top: 690px; color: var(--beige)">accessible à tous</div>
+            <svg class="draw" id="c2-c" style="left: 610px; top: 662px" width="440" height="120"><path d="M30 60 C 26 18, 380 6, 420 46 C 446 80, 300 112, 150 106 C 40 100, 10 70, 50 34" /></svg>
+          </div>
+
+          <!-- Z5 la structure -->
+          <div class="zone bleu" id="z5" style="left: 2320px; top: 2120px">
+            <div class="bg"></div>
+            <div class="k" id="s5-k" style="left: 90px; top: 160px"></div>
+            <div class="h" style="left: 58px; top: 290px; font-size: 156px"><span class="split" id="s5-a" style="color: var(--noir)">La </span><span class="split" id="s5-b">structure</span></div>
+            <div class="h l split" id="s5-c" style="left: 62px; top: 470px; font-size: 104px">de ton prompt.</div>
+            <svg class="draw" id="s5-u" style="left: 344px; top: 584px" width="360" height="30"><path d="M4 16 C 90 6, 170 22, 250 10 S 330 16, 354 8" /></svg>
+          </div>
+
+          <!-- Z6 le prompt, bloc par bloc -->
+          <div class="zone beige" id="z6" style="left: 2320px; top: 3180px">
+            <div class="bg"></div>
+            <div class="k" id="s6-k" style="left: 64px; top: 140px">la structure</div>
+            <div class="mark" id="s6-m" style="left: 158px; top: 0; width: 440px; height: 50px; transform: rotate(-0.6deg)"></div>
+            <div id="lines"></div>
+            <div class="hand" id="cmt"></div>
+            <svg class="draw" id="s6-c" style="left: 140px; top: 0" width="300" height="100"><path d="M286 38 C 302 74, 190 96, 110 92 C 40 88, 8 64, 22 40 C 34 12, 250 4, 276 30" /></svg>
+            <div id="big">00</div>
+          </div>
+
+          <!-- Z7 dans le terminal -->
+          <div class="zone noir" id="z7" style="left: 1160px; top: 3180px">
+            <div class="bg"></div>
+            <div class="k" id="s7-k" style="left: 64px; top: 160px">dans le terminal</div>
+            <div class="h split" id="t1" style="left: 60px; top: 240px; font-size: 96px">Opus 5.5</div>
+            <div class="hand" id="t1n" style="left: 520px; top: 262px">effort max !</div>
+            <div class="h" style="left: 60px; top: 360px; font-size: 96px"><span class="acc" id="t2p">+ </span><span class="split" id="t2">HyperFrames</span></div>
+            <div class="h" style="left: 60px; top: 480px; font-size: 96px"><span class="acc" id="t3p">+ </span><span class="split" id="t3">skill Taste</span></div>
+            <div class="h l" id="s7-w1" style="left: 64px; top: 660px; font-size: 60px">pour éviter les visuels</div>
+            <div class="h acc" id="s7-w2" style="left: 62px; top: 740px; font-size: 60px">trop génériques.</div>
+            <svg class="draw" id="s7-x" style="left: 50px; top: 760px" width="500" height="40"><path d="M4 26 C 120 10, 300 30, 492 12" /></svg>
+          </div>
+
+          <!-- Z8 en caption -->
+          <div class="zone beige" id="z8" style="left: 0; top: 3180px">
+            <div class="bg"></div>
+            <div class="h split" id="s8-w1" style="left: 58px; top: 230px; font-size: 150px">La structure</div>
+            <div class="h l acc" id="s8-w2" style="left: 62px; top: 410px; font-size: 130px">en caption</div>
+            <svg class="draw" id="s8-ar" style="left: 820px; top: 560px" width="120" height="400"><path d="M40 6 C 80 120, 10 230, 60 380 M60 380 L38 350 M60 380 L82 352" /></svg>
+            <div class="hand" id="s8-n" style="left: 64px; top: 680px">testée sur cette vidéo</div>
+            <svg class="draw" id="s8-ck" style="left: 560px; top: 676px" width="70" height="60"><path d="M6 32 L26 52 L64 8" /></svg>
+          </div>
+
+          <svg id="trails" width="3500" height="4400"></svg>
+          <div id="dot"></div>
+        </div>
+
+        <div id="bye"><div class="h split" id="s9-a" style="left: 58px; top: 330px; font-size: 230px; color: var(--beige)">Merci</div></div>
+      </div>
+
+      <div id="seam"><div id="prog"></div></div>
+    </div>
+
+    <!-- Les temps, lus mot a mot sur son montage (motion-work/aligned.json). sfx-cues.py lit ce meme bloc. -->
+    <script type="application/json" id="beats">
+      {
+        "total": 79.25,
+        "blue": [[24.6, 28.6]],
+        "end": 78.45,
+        "drops": [[0.6, 8, 0.03], [1.04, 4, 0.03], [1.22, 6, 0.04], [4.95, 8, 0.03], [5.4, 11, 0.035], [9.74, 6, 0.035], [12.83, 6, 0.03], [13.05, 6, 0.035], [18.3, 4, 0.03], [18.62, 3, 0.04], [26.98, 2, 0.04], [27.1, 9, 0.035], [27.55, 14, 0.025], [66.5, 7, 0.04], [68.5, 11, 0.03], [69.45, 10, 0.035], [74.3, 11, 0.03], [78.82, 6, 0.03], [63.56, 40, 0.008, 0.05]],
+        "typing": [[25.9, 26, 0.8]],
+        "sfx": [[1.38, "pop", 0.22], [28.2, "whoosh", 0.16], [9.45, "impact-bass-1", 0.24], [2.62, "whoosh-short", 0.08], [5.85, "whoosh-short", 0.08], [11.2, "whoosh-short", 0.08], [16.0, "whoosh-short", 0.08], [23.55, "whoosh-short", 0.08], [28.05, "whoosh-short", 0.08], [58.15, "whoosh-short", 0.08], [71.45, "whoosh-short", 0.08], [75.2, "whoosh-short", 0.08], [76.75, "whoosh-short", 0.08], [57.95, "impact-bass-1", 0.26], [16.0, "click", 0.14], [23.4, "pop", 0.18], [76.75, "ping", 0.14]],
+        "cam": [
+          [0.3, 2.9, 540, 490, 1.04, "none"],
+          [3.37, 0.55, 540, 1550, 1, "expo.inOut"],
+          [4.9, 1.3, 540, 1550, 1.04, "none"],
+          [7.02, 0.6, 1700, 1550, 1, "expo.inOut"],
+          [9.5, 2.6, 1700, 1550, 1.04, "none"],
+          [12.42, 0.6, 1700, 2610, 1.0, "expo.inOut"],
+          [13.2, 4.4, 1700, 2610, 1.03, "none"],
+          [17.82, 0.6, 1700, 2640, 1.0, "expo.inOut"],
+          [18.5, 5.6, 1700, 2640, 1.04, "none"],
+          [24.3, 0.85, 2280, 2080, 0.46, "expo.inOut"],
+          [26.0, 0.9, 2860, 2610, 1, "expo.inOut"],
+          [26.95, 1.2, 2860, 2610, 1.03, "none"],
+          [28.2, 0.35, 2829, 2642, 2.4, "expo.in"],
+          [28.55, 0.6, 2860, 3670, 1.0, "expo.out"],
+          [30.2, 1.9, 2860, 3670, 1.03, "none"],
+          [32.3, 0.5, 2860, 3670, 1.0, "expo.inOut"],
+          [34.8, 1.3, 2860, 3670, 1.03, "none"],
+          [36.2, 5.0, 2860, 3670, 1.0, "sine.inOut"],
+          [41.79, 0.45, 2860, 3670, 1.03, "expo.inOut"],
+          [43.29, 0.45, 2860, 3670, 1.0, "expo.inOut"],
+          [44.29, 0.45, 2860, 3670, 1.03, "expo.inOut"],
+          [47.18, 0.45, 2860, 3670, 1.0, "expo.inOut"],
+          [48.5, 0.45, 2860, 3670, 1.03, "expo.inOut"],
+          [49.58, 0.45, 2860, 3670, 1.0, "expo.inOut"],
+          [52.32, 0.45, 2860, 3670, 1.03, "expo.inOut"],
+          [56.74, 0.45, 2860, 3670, 1.0, "expo.inOut"],
+          [57.95, 0.5, 2860, 3670, 1.04, "back.out(2)"],
+          [58.7, 3.6, 2860, 3670, 1.0, "sine.inOut"],
+          [64.97, 0.7, 1700, 3670, 1.0, "expo.inOut"],
+          [65.7, 6.9, 1700, 3670, 1.04, "none"],
+          [72.97, 0.7, 540, 3670, 1, "expo.inOut"],
+          [73.7, 4.6, 540, 3670, 1.05, "none"]
+        ],
+        "dot": [
+          [3.0, 0.3, 980, 900],
+          [3.8, 0.55, 50, 1234],
+          [5.2, 0.25, 700, 1400],
+          [5.6, 0.25, 620, 1580],
+          [6.15, 0.25, 660, 1910],
+          [7.45, 0.55, 1210, 1234],
+          [9.6, 0.3, 1600, 1370],
+          [11.25, 0.3, 1630, 1615],
+          [12.85, 0.55, 1310, 2305],
+          [13.8, 0.25, 1210, 2530],
+          [15.4, 0.25, 1210, 2596],
+          [18.2, 0.5, 1310, 2745],
+          [21.5, 0.25, 1210, 2970],
+          [22.35, 0.25, 1210, 3036],
+          [23.45, 0.25, 2020, 2758],
+          [24.75, 0.45, 2300, 3090],
+          [25.45, 0.7, 2370, 2294],
+          [28.15, 0.3, 3220, 2370],
+          [29.0, 0.45, 2372, 3413],
+          [41.84, 0.2, 2372, 3477],
+          [43.34, 0.2, 2372, 3541],
+          [44.34, 0.2, 2372, 3605],
+          [47.23, 0.2, 2372, 3669],
+          [48.55, 0.2, 2372, 3733],
+          [49.63, 0.2, 2372, 3797],
+          [52.37, 0.2, 2372, 3861],
+          [56.79, 0.2, 2372, 3925],
+          [57.95, 0.2, 2372, 3989],
+          [63.0, 0.4, 2372, 3413],
+          [63.6, 0.3, 2372, 4047],
+          [65.4, 0.55, 1190, 3475],
+          [68.55, 0.2, 1190, 3595],
+          [69.5, 0.2, 1190, 3715],
+          [71.35, 0.3, 1700, 3780],
+          [73.4, 0.55, 700, 3610],
+          [75.8, 0.6, 880, 4120],
+          [76.8, 0.3, 660, 3886],
+          [78.4, 0.35, 540, 3670]
+        ],
+        "blocks": [["Communication", 28.9], ["Références", 41.84], ["Format", 43.34], ["Règles", 44.34], ["Esthétique", 47.23], ["Mouvement", 48.55], ["Interdits", 49.63], ["Rythme + son", 52.37], ["Scène", 56.79], ["Validation", 57.95]],
+        "cmts": [
+          [30.23, "le secret d'une relation qui marche"],
+          [32.31, "sinon, comment saurait-il quoi faire ?"],
+          [34.79, "demande-lui de te poser des questions"],
+          [36.19, "même sans le vocabulaire du motion"],
+          [41.84, ""],
+          [45.4, "des contraintes mesurables"],
+          [47.23, ""],
+          [50.45, "nomme ce que tu ne veux pas"],
+          [52.37, ""],
+          [53.27, "tempo, BPM, vibe"],
+          [56.79, ""],
+          [59.94, "il s'auto-analyse et valide"],
+          [62.6, "garde la structure"],
+          [63.56, "change les variables"]
+        ]
+      }
+    </script>
+
+    <script>
+      const B = JSON.parse(document.getElementById("beats").textContent);
+      const TOTAL = B.total;
+      const $ = (id) => document.getElementById(id);
+      // lettres separees pour la chute (le style de la premiere version)
+      const splitEl = (el) => {
+        const t = el.textContent;
+        el.textContent = "";
+        for (const c of t) {
+          const s = document.createElement("span");
+          s.className = "ch";
+          s.textContent = c === " " ? "\u00a0" : c;
+          el.appendChild(s);
+        }
+      };
+      document.querySelectorAll(".split").forEach(splitEl);
+
+      const tl = gsap.timeline({ paused: true });
+      const drop = (sel, at, st = 0.035) => tl.fromTo(sel + " .ch", { y: -110, opacity: 0, rotation: -8, filter: "blur(8px)" }, { y: 0, opacity: 1, rotation: 0, filter: "blur(0px)", duration: 0.42, ease: "back.out(1.7)", stagger: st }, at);
+      const fade = (sel, at, d = 0.25) => tl.fromTo(sel, { opacity: 0 }, { opacity: 1, duration: d, ease: "power2.out" }, at);
+      const wipe = (sel, at, d = 0.45) => tl.fromTo(sel, { clipPath: "inset(-30% 100% -30% 0)" }, { clipPath: "inset(-30% 0% -30% 0)", duration: d, ease: "power2.inOut" }, at);
+      const pop = (sel, at) => tl.fromTo(sel, { opacity: 0, scale: 0.6, rotation: -10 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.4, ease: "back.out(2.6)" }, at);
+      const draw = (sel, at, d = 0.45) => {
+        document.querySelectorAll(sel + " path").forEach((p) => {
+          const L = p.getTotalLength();
+          p.style.strokeDasharray = L;
+          tl.fromTo(p, { opacity: 0 }, { opacity: 1, duration: 0.01 }, at);
+          tl.fromTo(p, { strokeDashoffset: L }, { strokeDashoffset: 0, duration: d, ease: "power2.inOut" }, at);
+        });
+      };
+      const set = (fn, at) => tl.call(fn, null, at);
+
+      // camera : une seule transformation, position + zoom en espace log
+      const world = $("world");
+      const cam = { x: 540, y: 490, lz: 0 };
+      const applyCam = () => {
+        const z = Math.exp(cam.lz);
+        world.style.transform = "translate(" + (540 - cam.x * z) + "px," + (490 - cam.y * z) + "px) scale(" + z + ")";
+      };
+      applyCam();
+      let prev = [540, 490, 1];
+      B.cam.forEach(([at, d, x, y, z, ease]) => {
+        tl.fromTo(cam, { x: prev[0], y: prev[1], lz: Math.log(prev[2]) }, { x, y, lz: Math.log(z), duration: d, ease: ease || "expo.inOut", onUpdate: applyCam, immediateRender: false }, at);
+        prev = [x, y, z];
+      });
+
+      // le point : un seul trajet, une traine sur les longs sauts, un petit ecrasement a l'arrivee
+      const dot = $("dot");
+      gsap.set(dot, { x: 980, y: 190, scaleX: 0, scaleY: 0 });
+      tl.fromTo(dot, { scaleX: 0, scaleY: 0 }, { scaleX: 1, scaleY: 1, duration: 0.35, ease: "back.out(2.2)", immediateRender: false }, 1.5);
+      let p = [980, 190];
+      B.dot.forEach(([arrive, d, x, y]) => {
+        const at = arrive - d;
+        const ex = gsap.parseEase("power2.inOut"), ey = gsap.parseEase(y > p[1] ? "power2.in" : "power2.out");
+        tl.fromTo(dot, { x: p[0] }, { x, duration: d, ease: ex, immediateRender: false }, at);
+        tl.fromTo(dot, { y: p[1] }, { y, duration: d, ease: ey, immediateRender: false }, at);
+        if (d >= 0.5) {
+          let dd = "";
+          for (let k = 0; k <= 32; k++) { const u = k / 32; dd += (k ? " L " : "M ") + (p[0] + (x - p[0]) * ex(u)).toFixed(1) + " " + (p[1] + (y - p[1]) * ey(u)).toFixed(1); }
+          const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          path.setAttribute("d", dd);
+          $("trails").appendChild(path);
+          const L = path.getTotalLength();
+          path.style.strokeDasharray = L;
+          tl.fromTo(path, { strokeDashoffset: L, opacity: 0.85 }, { strokeDashoffset: 0, opacity: 0.85, duration: d, ease: "none", immediateRender: false }, at);
+          tl.to(path, { opacity: 0, duration: 0.5, ease: "power2.out" }, arrive + 0.1);
+        }
+        tl.fromTo(dot, { scaleX: 1.45, scaleY: 0.62 }, { scaleX: 1, scaleY: 1, duration: 0.3, ease: "back.out(2.5)", immediateRender: false }, arrive);
+        p = [x, y];
+      });
+      // sur le bleu, le point passe au noir
+      (B.blue || []).forEach(([on, off]) => {
+        tl.fromTo(dot, { backgroundColor: "#3d7bd9" }, { backgroundColor: "#121212", duration: 0.2, immediateRender: false }, on);
+        tl.fromTo(dot, { backgroundColor: "#121212" }, { backgroundColor: "#3d7bd9", duration: 0.2, immediateRender: false }, off);
+      });
+
+      tl.fromTo("#prog", { scaleX: 0 }, { scaleX: 1, duration: TOTAL, ease: "none" }, 0);
+
+      // Z1 « comment faire du motion avec Claude qui ressemble a quelque chose ? »
+      fade("#s1-k", 0.1);
+      drop("#s1-a", 0.6, 0.03);
+      drop("#s1-b", 1.04, 0.03);
+      drop("#s1-c", 1.22, 0.04);
+      wipe("#s1-q", 1.55, 0.6);
+      tl.fromTo("#s1-m", { scaleX: 0 }, { scaleX: 1, duration: 0.4, ease: "power2.out" }, 2.6);
+      draw("#s1-u", 2.62, 0.4);
+
+      // Z2 « un prompt qualitatif. De rien. »
+      fade("#s2-k", 3.6);
+      drop("#s2-a", 4.95, 0.03);
+      drop("#s2-b", 5.4, 0.035);
+      draw("#s2-ar", 5.85, 0.35);
+      pop("#s2-n", 6.08);
+
+      // Z3 « faire une difference entre deux choses qui ont eu pas mal de hype »
+      fade("#s3-k", 8.4);
+      tl.fromTo("#s3-2", { opacity: 0, y: -260, rotation: -14 }, { opacity: 1, y: 0, rotation: 0, duration: 0.6, ease: "bounce.out" }, 9.45);
+      drop("#s3-ch", 9.74, 0.035);
+      wipe("#s3-q", 10.15, 0.5);
+      fade("#s3-hy", 11.0, 0.2);
+      draw("#s3-c", 11.2, 0.45);
+
+      // Z4 Claude Motion (12.85), Opus 5.5 (18.34)
+      pop("#c1-n", 12.6);
+      drop("#c1-a", 12.83, 0.03);
+      drop("#c1-b", 13.05, 0.035);
+      wipe("#c1-p1", 13.75, 0.45);
+      wipe("#c1-p2", 15.36, 0.55);
+      draw("#c1-u", 16.0, 0.4);
+      tl.fromTo("#c-r", { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: "expo.out" }, 17.4);
+      tl.to("#c1-n, #c1-a .ch, #c1-b .ch", { color: "#b7c6b5", duration: 0.4 }, 17.8);
+      pop("#c2-n", 17.9);
+      drop("#c2-a", 18.3, 0.03);
+      drop("#c2-b", 18.62, 0.04);
+      wipe("#c2-p1", 21.45, 0.4);
+      wipe("#c2-p2", 22.3, 0.55);
+      wipe("#c2-p3", 23.35, 0.4);
+      draw("#c2-c", 23.55, 0.5);
+
+      // Z5 « la technique reste la meme : la structure de votre prompt »
+      const k5 = { n: 0 }, T5 = "LA TECHNIQUE RESTE LA MÊME";
+      tl.fromTo(k5, { n: 0 }, { n: T5.length, duration: 0.8, ease: "none", onUpdate: () => ($("s5-k").textContent = T5.slice(0, Math.round(k5.n))) }, 25.9);
+      drop("#s5-a", 26.98, 0.04);
+      drop("#s5-b", 27.1, 0.035);
+      drop("#s5-c", 27.55, 0.025);
+      draw("#s5-u", 28.05, 0.3);
+
+      // Z6 les 10 blocs : un index suisse, chaque nom tombe quand tu le nommes
+      const Y0 = 200, STEP = 64;
+      // largeurs mesurees sur InterDisplay-Medium 56 px (fontTools)
+      const WN = { "Communication": 374, "Références": 267, "Format": 168, "Règles": 159, "Esthétique": 249, "Mouvement": 284, "Interdits": 188, "Rythme + son": 326, "Scène": 149, "Validation": 230 };
+      const big = $("big"), cmt = $("cmt");
+      fade("#s6-k", 28.6);
+      B.blocks.forEach(([name, at], i) => {
+        const ln = document.createElement("div");
+        ln.className = "ln"; ln.id = "ln" + i;
+        ln.style.top = Y0 + i * STEP + "px";
+        ln.innerHTML = "<b>" + String(i + 1).padStart(2, "0") + "</b><span>" + name + "</span>";
+        $("lines").appendChild(ln);
+        splitEl(ln.querySelector("span"));
+        tl.fromTo("#ln" + i + " b", { opacity: 0 }, { opacity: 1, duration: 0.15 }, at);
+        tl.fromTo("#ln" + i + " b", { color: "#121212" }, { color: "#3d7bd9", duration: 0.15, immediateRender: false }, at);
+        drop("#ln" + i + " span", at, 0.025);
+        if (i > 0) {
+          tl.fromTo("#ln" + (i - 1) + " > span", { fontWeight: 500 }, { fontWeight: 300, duration: 0.01, immediateRender: false }, at);
+          tl.fromTo("#ln" + (i - 1) + " b", { color: "#3d7bd9" }, { color: "#121212", duration: 0.25, immediateRender: false }, at);
+        }
+        set(() => (cmt.style.top = Y0 + (i + 1) * STEP + 2 + "px"), at);
+        tl.fromTo("#s6-m", { y: Y0 + i * STEP + 10, scaleX: 0 }, { y: Y0 + i * STEP + 10, scaleX: (WN[name] + 16) / 440, duration: 0.35, ease: "power2.out", immediateRender: i === 0 }, at + 0.05);
+        set(() => (big.textContent = String(i + 1).padStart(2, "0")), at);
+        tl.fromTo(big, { y: -40, opacity: 0.2 }, { y: 0, opacity: 1, duration: 0.35, ease: "back.out(2)", immediateRender: false }, at);
+      });
+      gsap.set(big, { opacity: 0 });
+      set(() => (big.textContent = "00"), 28.5);
+      // les notes s'ecrivent a la main sous la derniere ligne
+      B.cmts.forEach(([at, text]) => {
+        set(() => (cmt.textContent = text), at);
+        if (text) wipe("#cmt", at, Math.min(0.8, 0.022 * text.length));
+      });
+      set(() => (cmt.textContent = ""), 28.5);
+      // Valide : un cercle a la main autour du mot
+      set(() => ($("s6-c").style.top = Y0 + 9 * STEP - 18 + "px"), 57.9);
+      draw("#s6-c", 58.15, 0.5);
+      // « gardez la structure » : tout revient au noir, les numeros passent au bleu en cascade
+      tl.fromTo(".ln > span", { fontWeight: 300 }, { fontWeight: 500, duration: 0.01, immediateRender: false }, 62.4);
+      tl.fromTo(".ln b", { color: "#121212" }, { color: "#3d7bd9", duration: 0.15, stagger: { each: 0.04, from: "end" }, immediateRender: false }, 62.6);
+      // « changez les variables » : les noms sautent et retombent, les numeros ne bougent pas
+      tl.to("#s6-m", { opacity: 0, duration: 0.2 }, 62.4);
+      tl.fromTo(".ln > span .ch", { y: 0 }, { keyframes: [{ y: -16, duration: 0.14, ease: "power2.out" }, { y: 0, duration: 0.3, ease: "bounce.out" }], stagger: { each: 0.006, from: "start" }, immediateRender: false }, 63.56);
+
+      // Z7 terminal : opus 5.5 effort max (66.56 - 68.14), HyperFrames (68.56), Taste (69.85)
+      fade("#s7-k", 65.0);
+      drop("#t1", 66.5, 0.04);
+      pop("#t1n", 67.95);
+      pop("#t2p", 68.4);
+      drop("#t2", 68.5, 0.03);
+      pop("#t3p", 69.35);
+      drop("#t3", 69.45, 0.035);
+      wipe("#s7-w1", 70.2, 0.5);
+      wipe("#s7-w2", 70.9, 0.45);
+      draw("#s7-x", 71.45, 0.35);
+
+      // Z8 « je vous ai mis la structure en caption », essaye sur cette video (76.75)
+      drop("#s8-w1", 74.3, 0.03);
+      wipe("#s8-w2", 74.88, 0.5);
+      draw("#s8-ar", 75.2, 0.6);
+      wipe("#s8-n", 76.4, 0.45);
+      draw("#s8-ck", 76.75, 0.3);
+
+      // Fin (78.52) : le point grandit jusqu'a remplir l'ecran
+      tl.fromTo(dot, { scaleX: 1, scaleY: 1 }, { scaleX: 75, scaleY: 75, duration: 0.35, ease: "expo.in", immediateRender: false }, B.end);
+      drop("#s9-a", B.end + 0.21, 0.02);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

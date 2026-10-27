@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# derush.sh — une commande pour tout le mécanique du dérush. Alias : `derush` si lié (outils/installer.sh --lier)
+#
+#   derush prep   <video> [--lang fr|en] [--noise -35] [--min 0.45] [--pad 0.12]
+#                 (--noise est un plafond : word_peaks.py le descend si un mot aligné pique dessous)
+#                 range la source dans videos/<STEM>/, puis audio, silences, whisper,
+#                 alignement, euh, trous. Écrit transcript.txt. ~1.5x la durée de la vidéo.
+#   derush words  <STEM>      transcript mot à mot avec bornes, pour l'étape faux départs
+#   derush render <STEM>      fusion + garde + coupe + vérification → <STEM>.derush.mp4 + cuts.md
+#   derush logos  <STEM> [--x 0.04|center] [--y 0.03] [--width 0.30]   logos.json → <STEM>.logos.mp4
+#   derush fcpxml <STEM>      <STEM>.fcpxml : le montage en timeline Resolve, clips sur la source entière
+#                             (tirer un bord de clip rend ce qui a été coupé). render l'écrit aussi.
+#   derush export <STEM> [--from <fichier>]   --from : un montage retouché (export Resolve) passe la même chaîne
+#   derush export <STEM>      <STEM>.reel.mp4 : 1080x1920, 30 fps, -14 LUFS, faststart, prêt à poster
+#   derush all    <video>     prep puis render puis export, avec 0 faux départ (rapide, moins propre)
+#
+# <STEM> = le nom du dossier dans videos/ (IMG_4567). Un chemin de vidéo marche aussi partout.
+#
+# Dossier : <racine du dépôt>/videos/<STEM>/
+#   <STEM>.MOV             la source, déplacée ici par prep (même volume : instantané, réversible)
+#   <STEM>.derush.mp4      le montage, qualité master (fps et débit de la source)
+#   <STEM>.reel.mp4        la version à poster (export)
+#   cuts.md                le rapport : durées, couches, faux départs, diff source/sortie
+#   retraction_cuts.json   les faux départs (étape 6, lecture humaine ou agent)
+#   transcript.txt         le transcript lisible, bornes alignées
+#   _work/                 intermédiaires, gitignorés, régénérables
+#
+# Entre prep et render, l'étape 6 (faux départs) se fait à la main : `derush words`, puis
+# écrire retraction_cuts.json selon la rubrique de SKILL.md. Rien d'autre à toucher.
+#
+# Mesuré 2026-10-07/08 : whisper ~1x temps réel sur CPU, alignement ~80 s pour 4:39,
+# rendu 1080p120 ~ durée de la sortie. Compter ~2.5x la durée de la vidéo au total.
+
+set -euo pipefail
+
+# D et SM se déduisent de l'emplacement réel du script, même appelé par un lien symbolique
+# (.claude/skills/derush/scripts/derush.sh dans le dépôt).
+_self="${BASH_SOURCE[0]}"
+while [[ -L "$_self" ]]; do
+  _t="$(readlink "$_self")"; [[ "$_t" = /* ]] && _self="$_t" || _self="$(dirname "$_self")/$_t"
+done
+D="$(cd "$(dirname "$_self")" && pwd)"
+SM="$(cd "$D/../../../.." && pwd)"
+S="$D"   # detect_fillers.py, prune.py, cut.sh vivent à côté de ce script
+WHISPER="${WHISPER:-$(command -v whisper || true)}"
+[[ -n "$WHISPER" && -x "$WHISPER" ]] || { echo "whisper introuvable : pip install openai-whisper, ou export WHISPER=/chemin/whisper" >&2; exit 1; }
+RUSHS="${DERUSH_OUT_ROOT:-$SM/videos}"
+
+usage() { sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+log() { printf '[derush %s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+jlen() { python3 -I -c "import json,sys;d=json.load(open(sys.argv[1]));print(len(d[sys.argv[2]] if len(sys.argv)>2 else d))" "$@"; }
+
+CMD="${1:-}"; ARG="${2:-}"
+[[ -z "$CMD" || -z "$ARG" ]] && usage
+shift 2
+
+LANG_=fr; NOISE=-35; MIN=0.45; PAD=0.12; FROM=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --lang) LANG_="$2"; shift 2;;
+    --noise) NOISE="$2"; shift 2;;
+    --min) MIN="$2"; shift 2;;
+    --pad) PAD="$2"; shift 2;;
+    --from) FROM="$2"; shift 2;;
+    *) echo "option inconnue : $1" >&2; usage;;
+  esac
+done
+
+# Résolution : un fichier → sa source ; un STEM → la source rangée dans videos/<STEM>/
+if [[ -f "$ARG" ]]; then
+  V="$(cd "$(dirname "$ARG")" && pwd)/$(basename "$ARG")"
+  STEM="$(basename "${V%.*}")"
+else
+  STEM="$ARG"
+  [[ -f "$RUSHS/$STEM/_work/source.txt" ]] || { echo "aucun rush $STEM dans $RUSHS (lancer prep d'abord)" >&2; exit 1; }
+  V="$(cat "$RUSHS/$STEM/_work/source.txt")"
+  [[ -f "$V" ]] || { echo "source déplacée ? $V introuvable" >&2; exit 1; }
+fi
+OUT="$RUSHS/$STEM"; W="$OUT/_work"
+mkdir -p "$W"
+
+prompt_for() {
+  case "$1" in
+    en) echo "Um, so, uh, I... I mean, hmm, like, you know, well.";;
+    *)  echo "Euh, alors, hum, je... je voulais, euh, mmh, en fait, bah, voilà.";;
+  esac
+}
+
+transcribe() { # <wav> <outdir> → <outdir>/<wavstem>.json
+  "$WHISPER" "$1" --model large-v3-turbo --device cpu --language "$LANG_" \
+    --output_format json --output_dir "$2" --word_timestamps True \
+    --condition_on_previous_text False --initial_prompt "$(prompt_for "$LANG_")" \
+    >/dev/null 2>"$2/whisper.err" || { cat "$2/whisper.err" >&2; return 1; }
+}
+
+write_transcript() { # aligned.json → transcript.txt
+  python3 -I - "$1" "$2" <<'PY'
+import json,sys
+a=json.load(open(sys.argv[1]))
+with open(sys.argv[2],"w") as f:
+    for s in a["segments"]:
+        ws=s.get("words",[])
+        if not ws: continue
+        f.write(f"[{ws[0]['start']:7.2f} - {ws[-1]['end']:7.2f}] {s['text'].strip()}\n")
+PY
+}
+
+ingest_source() { # range la source dans $OUT si elle n'y est pas déjà
+  case "$V" in
+    "$OUT"/*) ;;
+    *) local dest="$OUT/$(basename "$V")"
+       if [[ -e "$dest" ]]; then log "source déjà présente : $dest (celle de $V n'est pas touchée)"
+       else mv "$V" "$dest"; log "source rangée : $V → $dest"; fi
+       V="$dest";;
+  esac
+  printf '%s\n' "$V" > "$W/source.txt"
+}
+
+cmd_prep() {
+  ingest_source
+  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$V")
+  log "prep $STEM ($DUR s) → $OUT"
+  ffmpeg -nostdin -y -loglevel error -i "$V" -vn -ac 1 -ar 16000 "$W/audio.wav"
+  log "1/5 audio ok"
+  python3 -I "$D/silence_cuts.py" "$W/audio.wav" --out "$W/silence_cuts.json" --noise "$NOISE" --min "$MIN" --pad "$PAD"
+  log "2/5 silences : $(jlen "$W/silence_cuts.json" filler_cuts)"
+  transcribe "$W/audio.wav" "$W"
+  log "3/5 whisper ok"
+  python3 "$D/align_words.py" "$W/audio.wav" "$W/audio.json" --out "$W/aligned.json"
+  log "3b/5 alignement ok"
+  # Le seuil de silence doit passer SOUS chaque mot. IMG_4594 (2026-10-11) : 110 mots sur 806
+  # piquaient sous -35 dB (apartés murmurés, plancher -68 dB), coupés entiers, garde verte.
+  NOISE2=$(python3 -I "$D/word_peaks.py" "$W/aligned.json" "$W/audio.wav" --noise "$NOISE")
+  if [[ -n "$NOISE2" && "$NOISE2" != "$NOISE" ]]; then
+    python3 -I "$D/silence_cuts.py" "$W/audio.wav" --out "$W/silence_cuts.json" --noise "$NOISE2" --min "$MIN" --pad "$PAD"
+    log "2/5 silences recalculés à $NOISE2 dB : $(jlen "$W/silence_cuts.json" filler_cuts) (des mots passaient sous $NOISE dB, voir word_peaks ci-dessus)"
+  fi
+  python3 -I "$S/detect_fillers.py" --segments "$W/aligned.json" --out "$W/filler_cuts.json"
+  python3 -I "$D/gap_fillers.py" --words "$W/aligned.json" --out "$W/gap_cuts.json"
+  log "4-5/5 euh écrits : $(jlen "$W/filler_cuts.json"), trous : $(jlen "$W/gap_cuts.json" filler_cuts)"
+  write_transcript "$W/aligned.json" "$OUT/transcript.txt"
+  python3 "$D/gap_check.py" "$W" --lang "$LANG_" | sed 's/^/    /'
+  log "5b/5 trous non silencieux contrôlés ($W/gap_check.txt). PAROLE DANS LE TROU = retirer ce trou de gap_cuts.json avant render"
+  [[ -f "$OUT/retraction_cuts.json" ]] || echo '{"retraction_cuts":[]}' > "$OUT/retraction_cuts.json"
+  log "prep terminé. Étape 6 : derush words $STEM, écrire $OUT/retraction_cuts.json, puis derush render $STEM"
+}
+
+cmd_words() {
+  python3 -I - "$W/aligned.json" <<'PY'
+import json,sys
+a=json.load(open(sys.argv[1]))
+for s in a["segments"]:
+    ws=s.get("words",[])
+    if not ws: continue
+    print(f"## seg {ws[0]['start']:.2f}-{ws[-1]['end']:.2f}")
+    print(" ".join(f"{w['word'].strip()}@{w['start']:.2f}-{w['end']:.2f}" + ("" if w.get("aligned",True) else "?") for w in ws))
+PY
+}
+
+cmd_render() {
+  [[ -f "$W/aligned.json" ]] || { echo "pas de prep pour $STEM" >&2; exit 1; }
+  DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$V")
+  local RC="$OUT/retraction_cuts.json"
+  log "render $STEM, $(jlen "$RC" retraction_cuts) faux départs"
+  python3 -I - "$W" <<'PY'
+import json,sys; w=sys.argv[1]
+c=(json.load(open(f"{w}/silence_cuts.json"))["filler_cuts"]
+   +json.load(open(f"{w}/gap_cuts.json"))["filler_cuts"]
+   +json.load(open(f"{w}/filler_cuts.json")))
+json.dump(c,open(f"{w}/all_cuts.json","w"))
+PY
+  log "7a $(python3 -I "$D/tail_guard.py" "$W")"
+  python3 -I "$S/prune.py" --segments "$W/aligned.json" --duration "$DUR" \
+    --filler-cuts "$W/all_cuts.json" --retraction-cuts "$RC" \
+    --min-silence-gap 999 --min-keep 0.1 --out "$W/keep.json" >/dev/null
+  cp "$W/keep.json" "$OUT/keep.json"
+  log "7 fusion ok : $(jlen "$W/keep.json") plages gardées"
+  python3 -I "$D/check_clips.py" "$W/aligned.json" "$W/keep.json" "$RC" --silence "$W/silence_cuts.json" --fillers "$W/filler_cuts.json" \
+    || { log "7b GARDE ROUGE : un mot gardé serait rogné. Rien rendu."; exit 1; }
+  log "7b garde verte"
+  local MP4="$OUT/$STEM.derush.mp4"
+  "$S/cut.sh" "$V" "$W/keep.json" "$MP4" 2>"$W/cut.err" | tail -1 \
+    || { log "8 COUPE EN ECHEC : $W/cut.err"; tail -5 "$W/cut.err" >&2; exit 1; }
+  log "8 coupe ok"
+  local VD AD
+  VD=$(ffprobe -v error -select_streams v:0 -show_entries stream=duration -of default=nw=1:nk=1 "$MP4")
+  AD=$(ffprobe -v error -select_streams a:0 -show_entries stream=duration -of default=nw=1:nk=1 "$MP4")
+  ffmpeg -nostdin -y -loglevel error -i "$MP4" -vn -ac 1 -ar 16000 "$W/out.wav"
+  transcribe "$W/out.wav" "$W"
+  python3 -I "$D/verify_diff.py" "$W/audio.json" "$W/out.json" > "$W/verify_diff.txt" || true
+  python3 -I - "$DUR" "$VD" "$AD" "$W/keep.json" "$W/silence_cuts.json" "$W/gap_cuts.json" "$W/filler_cuts.json" "$RC" "$W/verify_diff.txt" "$OUT/cuts.md" "$STEM" <<'PY'
+import json,sys,datetime
+dur,vd,ad=map(float,sys.argv[1:4]); keep=json.load(open(sys.argv[4]))
+ns=len(json.load(open(sys.argv[5]))["filler_cuts"]); ng=len(json.load(open(sys.argv[6]))["filler_cuts"])
+nf=len(json.load(open(sys.argv[7]))); ret=json.load(open(sys.argv[8]))["retraction_cuts"]
+diff=open(sys.argv[9]).read().strip().splitlines(); stem=sys.argv[11]
+fmt=lambda s:f"{int(s//60)}:{int(s%60):02d}"
+kept=sum(k["end"]-k["start"] for k in keep)
+lines=[f"# {stem} derush, {datetime.date.today().isoformat()}",
+ "",
+ "- Sujet : (à remplir)",
+ f"- Durée : {fmt(dur)} -> {fmt(vd)} ({vd:.1f} s, {100*(1-vd/dur):.0f} % coupé)",
+ f"- Coupes : {len(keep)-1} raccords. Couches : {ns} silences, {ng} euh cachés (trous), {nf} euh/bégaiements écrits, {len(ret)} faux départs",
+ f"- Garde check_clips : 0 mot rogné. Sync A/V : {abs(vd-ad)*1000:.0f} ms. Dérive raccords : {(vd-kept)*1000/max(1,len(keep)-1):.0f} ms/raccord",
+ "", "## Faux départs coupés"]
+lines+= [f"- {r['start']:.1f} -> {r['end']:.1f} s : « {r['cue_text']} » ; {r['rationale']}" for r in ret] or ["- aucun"]
+lines+=["", "## Diff transcript source -> sortie (à relire : chaque delete doit être voulu)", "```"]+diff+["```"]
+open(sys.argv[10],"w").write("\n".join(lines)+"\n")
+print("\n".join(lines[3:6]))
+PY
+  log "rapport : $OUT/cuts.md (relire la section diff, remplir Sujet)"
+  cmd_fcpxml
+}
+
+cmd_logos() {
+  [[ -f "$OUT/logos.json" ]] || { echo "pas de $OUT/logos.json : {\"cues\":[{\"logo\":\"canva\",\"t\":14.27}]} (t = instant SOURCE lu dans derush words)" >&2; exit 1; }
+  [[ -f "$OUT/$STEM.derush.mp4" ]] || { echo "pas de montage pour $STEM (lancer render)" >&2; exit 1; }
+  python3 -I "$D/logos.py" "$OUT" "$@"
+  log "logos : $OUT/$STEM.logos.mp4 (export le prend s'il existe ; le supprimer pour exporter sans)"
+}
+
+cmd_fcpxml() {
+  [[ -f "$OUT/keep.json" ]] || { echo "pas de keep.json pour $STEM (lancer render)" >&2; exit 1; }
+  python3 -I "$D/fcpxml.py" "$V" "$OUT/keep.json" "$OUT/$STEM.fcpxml" "$STEM"
+  log "timeline : $OUT/$STEM.fcpxml (Resolve : File > Import > Timeline)"
+}
+
+cmd_export() {
+  local MP4="$OUT/$STEM.derush.mp4" REEL="$OUT/$STEM.reel.mp4"
+  [[ -f "$OUT/$STEM.logos.mp4" ]] && { MP4="$OUT/$STEM.logos.mp4"; log "export depuis la version avec logos"; }
+  [[ -n "$FROM" ]] && { MP4="$FROM"; log "export depuis $FROM (montage retouché à la main)"; }
+  [[ -f "$MP4" ]] || { echo "pas de montage pour $STEM (lancer render)" >&2; exit 1; }
+  # Spec de sortie, décidée 2026-10-08 : 9:16 natif iPhone conservé (1080x1920 après rotation),
+  # 30 fps (les plateformes ré-encodent à 30, et 120 fps triple le poids pour rien sur un visage),
+  # loudness -14 LUFS (voix de téléphone, niveau uniforme d'une vidéo à l'autre), faststart.
+  # loudnorm en DEUX passes : la passe unique rendait -15.8 LUFS pour -14 visés (mesuré
+  # IMG_4567, 2026-10-08). Passe 1 mesure, passe 2 corrige en mode linéaire avec les mesures.
+  local M; M=$(ffmpeg -nostdin -i "$MP4" -af "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json" -f null - 2>&1 | python3 -I "$D/loudnorm_measure.py")
+  ffmpeg -nostdin -y -loglevel error -i "$MP4" \
+    -vf "fps=30,scale=w=1080:h=1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+    -c:v libx264 -preset medium -crf 20 -profile:v high -level 4.1 \
+    -af "loudnorm=I=-14:TP=-1.5:LRA=11:$M:linear=true" -c:a aac -b:a 192k -ar 48000 -ac 2 \
+    -movflags +faststart "$REEL"
+  local LUFS; LUFS=$(ffmpeg -nostdin -i "$REEL" -af "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=summary" -f null - 2>&1 | grep "Input Integrated" | awk '{print $3}')
+  log "export loudness : $LUFS LUFS (cible -14)"
+  local SZ; SZ=$(du -h "$REEL" | cut -f1)
+  log "export : $REEL ($SZ, $(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -of csv=p=0 "$REEL"))"
+}
+
+case "$CMD" in
+  prep) cmd_prep;;
+  words) cmd_words;;
+  render) cmd_render;;
+  logos) cmd_logos "${@:3}";;
+  fcpxml) cmd_fcpxml;;
+  export) cmd_export;;
+  all) cmd_prep; cmd_render; cmd_export;;
+  *) usage;;
+esac

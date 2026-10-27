@@ -1,0 +1,589 @@
+#!/usr/bin/env python3
+"""outils/video : où en est une vidéo, lu sur le disque.
+
+  outils/video statut STEM       une vidéo, 10 lignes max : fait, ce qui attend ton geste, la suite
+  outils/video statut            une ligne par vidéo en cours (ni exportée ni motion rendu)
+  outils/video statut --toutes   une ligne par vidéo, terminées comprises
+  outils/video valide STEM ETAPE ton OK sur une étape (montage, overlays, caption...) ; écrit ETAT.json
+  outils/video export STEM NOM   le paquet à publier dans videos/STEM/final/ (NOM.mp4, caption, vignette) ; refuse sans caption.txt
+                                 ou hors -14 LUFS (à 1 LU près) ; écrit ETAT.json. Publier reste ton geste
+
+statut n'écrit jamais rien. ETAT.json a un seul écrivain, ce fichier : valide et export aujourd'hui,
+les commandes des étapes à venir demain. La porte : /sm-video STEM.
+Racine : <dépôt>/videos, ou DERUSH_OUT_ROOT (la même variable que derush.sh).
+
+Deux lectures.
+- Avec ETAT.json : les étapes viennent d'ETAT.json, comparées aux fichiers de PREUVES. Un
+  fichier plus récent que « fait », ou une étape que les fichiers montrent et qu'ETAT.json n'a
+  pas : « ETAT.json en retard », et l'état affiché est recalé sur les fichiers.
+- Sans ETAT.json (dossier d'avant la chaîne) : l'ancienne chaîne, la plus haute trace gagne.
+    <STEM>.motion.mp4                         motion rendu, fini
+    <STEM>.overlays.mp4 et caption.txt        finition faite, à exporter (outils/video export)
+    <STEM>.overlays.mp4                       sous-titres rendus, à valider ; overlays/overlays.json seul : commencés
+    motion/ sans <STEM>.motion.mp4            motion commencé
+    <STEM>.reel.mp4                           exportée, fini (la fin de l'ancienne chaîne)
+    cuts.md ou <STEM>.derush.mp4              montée, à valider
+    _work/aligned.json et transcript.txt      transcrite, faux départs à écrire
+    la prise <STEM>.MOV, .mov, .mp4 ou .m4v   rangée, pas transcrite
+    NOTES-REPRISE.md, RECHERCHE.md, FICHE.json   recherche faite, prise à tourner
+"""
+
+import argparse
+import difflib
+import filecmp
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
+SM = Path(__file__).resolve().parent.parent
+RACINE = Path(os.environ.get("DERUSH_OUT_ROOT") or SM / "videos")
+HOME = os.path.expanduser("~")
+
+# Schéma d'ETAT.json, version 1. Le seul endroit qui le définit ; videos/README.md le décrit.
+#   version         1
+#   stem            nom du dossier videos/<STEM>/, celui du fichier de la prise
+#   source_origine  où était la prise avant d'être rangée (ex. ~/Downloads/IMG_4640.MOV)
+#   recherche       dossier de recherche, relatif à la racine du dépôt (videos/<STEM>/ ou recherches/<date>-<sujet>)
+#   etapes          une entrée par étape de ETAPES : {"fait", "mesures", "valide"}
+#     fait          date ET heure ISO 8601 avec fuseau (2026-10-20T14:03:12+02:00), null si pas
+#                   faite. L'heure compte : statut la compare à la date des fichiers.
+#     mesures       ce que l'étape a mesuré, libre par étape. "saute": "<raison>" = étape passée
+#                   exprès (repare quand le diag est bon, medias sans référence).
+#     valide        ton OK. false sur une étape faite = elle attend ton geste. marquer() met true
+#                   d'office hors A_VALIDER.
+SCHEMA = 1
+ETAPES = ("diag", "repare", "montage", "look", "medias", "motion", "overlays", "caption", "export")
+# le plan : les coupes, la planche des médias, le motion ; puis les sous-titres et la caption
+A_VALIDER = ("montage", "medias", "motion", "overlays", "caption")
+TOLERANCE = 60  # s : l'écrivain pose ETAT.json juste après les fichiers de son étape
+
+# Avec ETAT.json, le fichier qui montre chaque étape. look : aucun fichier tant que derush export ne
+# pose pas le look ; outils/overlays.py le pose, et refuse de
+# rendre sans look choisi. diag et export n'ont aucun fichier dans le dossier : ETAT.json seul.
+PREUVES = {
+    "repare": ("{stem}.repare.mp4",),
+    "montage": ("cuts.md", "{stem}.derush.mp4"),
+    "medias": ("medias/MEDIAS.json",),
+    "motion": ("{stem}.motion.mp4",),
+    "overlays": ("{stem}.overlays.mp4",),
+    "caption": ("caption.txt",),
+}
+GESTE = {
+    "diag": "trancher le diag (reprise conseillée ?)",
+    "montage": "valider les coupes : {stem}.derush.mp4",
+    "medias": "choisir sur medias/planche.jpg (« garde 1 3 4 »)",
+    "motion": "valider le motion : {stem}.motion.mp4",
+    "overlays": "valider la vidéo : {stem}.overlays.mp4 (planche : overlays/check.jpg)",
+    "caption": "relire caption.txt",
+}
+SUITE = {
+    "diag": "(pas d'outil pour cette étape)",
+    "repare": "(pas d'outil pour cette étape)",
+    "look": "derush export {ref}",
+    "medias": "(pas d'outil pour cette étape)",
+    "motion": "/sm-motion {nom}",
+    "overlays": "outils/overlays.py texte {nom}, écrire overlays/overlays.json, essai puis rendu (/sm-video {nom})",
+    "caption": "écrire caption.txt, relue contre STYLE.md (/sm-video {nom})",
+    "export": "outils/video export {nom} <nom-court>",
+}
+# Sans fichier dans un premier ETAT.json : sautées tant qu'elles n'ont pas d'outil ou pas de demande.
+# Un fichier qui apparaît plus tard (motion rendu) recale l'étape, statut le dit.
+SAUTEES = {"diag": "pas d'outil", "repare": "pas d'outil",
+           "look": "posé par outils/overlays.py, qui refuse de rendre sans look choisi",
+           "medias": "pas d'outil", "motion": "pas demandé, /sm-motion le fait"}
+
+VIDEO = (".mov", ".mp4", ".m4v")
+SUFFIXES = (".derush.mp4", ".reel.mp4", ".logos.mp4", ".motion.mp4", ".repare.mp4", ".overlays.mp4", ".fcpxml")
+CONNUS = {"cuts.md", "keep.json", "retraction_cuts.json", "transcript.txt", "logos.json",
+          "caption.txt", "CAPTION.md", "coupe-serree.md", "NOTES-REPRISE.md", "RECHERCHE.md",
+          "FICHE.json", "FICHE.html", "ETAT.json"}
+DOSSIERS = {"_work", "motion", "motion-work", "medias", "davinci", "overlays", "look", "final"}
+FIN = "aucune commande : publier est ton geste"
+# La finition (sous-titres, caption, export) existe depuis ce jour : un export d'avant est fini.
+FINITION = datetime(2026, 1, 1).timestamp()
+
+
+# ---- ETAT.json : lecture, et écriture ----
+
+def etat_vide(stem):
+    return {"version": SCHEMA, "stem": stem, "source_origine": None, "recherche": None,
+            "etapes": {e: {"fait": None, "mesures": {}, "valide": False} for e in ETAPES}}
+
+
+def maintenant():
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def marquer(etat, etape, mesures=None, valide=None):
+    """L'étape est faite maintenant. valide : true d'office hors A_VALIDER."""
+    etat["etapes"][etape] = {"fait": maintenant(), "mesures": mesures or {},
+                             "valide": (etape not in A_VALIDER) if valide is None else valide}
+
+
+def ecrire_etat(d, etat):
+    """Écrit ETAT.json d'un coup (fichier temporaire puis renommage). statut ne l'appelle jamais."""
+    manque = [e for e in ETAPES if e not in etat.get("etapes", {})]
+    if manque or etat.get("stem") != d.name:
+        raise ValueError(f"ETAT.json refusé : étapes manquantes {manque}, stem {etat.get('stem')!r} pour {d.name!r}")
+    tmp = d / "ETAT.json.tmp"
+    tmp.write_text(json.dumps(etat, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(tmp, d / "ETAT.json")
+
+
+def lire_etat(d):
+    """ETAT.json complété aux valeurs vides, None s'il n'existe pas. ValueError s'il est illisible."""
+    p = d / "ETAT.json"
+    if not p.exists():
+        return None
+    try:
+        brut = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"ETAT.json illisible ({e})")
+    if not isinstance(brut, dict) or not isinstance(brut.get("etapes", {}), dict):
+        raise ValueError("ETAT.json illisible (pas la forme du schéma)")
+    etat = etat_vide(d.name)
+    for k in ("version", "stem", "source_origine", "recherche"):
+        etat[k] = brut.get(k, etat[k])
+    for e in ETAPES:
+        v = brut["etapes"].get(e) if "etapes" in brut else None
+        if isinstance(v, dict):
+            etat["etapes"][e].update({k: v[k] for k in ("fait", "mesures", "valide") if k in v})
+            if not isinstance(etat["etapes"][e]["mesures"], dict):
+                etat["etapes"][e]["mesures"] = {}
+    return etat
+
+
+# ---- Lecture des fichiers ----
+
+def quand(p):
+    try:
+        return p.stat().st_mtime
+    except OSError:
+        return None
+
+
+def jour(t):
+    return datetime.fromtimestamp(t).strftime("%Y-%m-%d")
+
+
+def horodatage(s):
+    """« fait » en secondes. Une date seule vaut la fin de ce jour-là, pour ne pas crier au retard."""
+    if not isinstance(s, str) or not s:
+        return None
+    try:
+        d = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if len(s) == 10:
+        d = d.replace(hour=23, minute=59, second=59)
+    return d.timestamp()
+
+
+def court(p):
+    s = str(p)
+    if s.startswith(str(SM) + "/"):
+        return s[len(str(SM)) + 1:]
+    return "~" + s[len(HOME):] if s.startswith(HOME + "/") else s
+
+
+def shell(p):
+    """Chemin prêt à coller (le ~ hors des guillemets, pour qu'il s'étende)."""
+    s = str(p)
+    return "~/" + shlex.quote(s[len(HOME) + 1:]) if s.startswith(HOME + "/") else shlex.quote(s)
+
+
+def prise(d, stem):
+    """(chemin de la prise ou None, ce qu'on en dit, derush la trouve-t-il par son STEM).
+    Même règle que derush.sh : _work/source.txt d'abord, et le fichier doit exister."""
+    noms = {stem.lower() + x for x in VIDEO}
+    ici = next((f for f in sorted(d.iterdir()) if f.is_file() and f.name.lower() in noms), None)
+    ptr = d / "_work" / "source.txt"
+    if ptr.exists():
+        cible = Path(ptr.read_text(encoding="utf-8").strip())
+        if cible.is_file():
+            return cible, (f"{cible.name}, ici" if cible.parent == d else f"{court(cible)}, hors du dossier"), True
+        if ici:
+            return ici, (f"{ici.name}, ici ; _work/source.txt vise encore {court(cible)} (absent), "
+                         f"donc derush échoue par le nom : la suite passe le chemin"), False
+        return None, f"introuvable : _work/source.txt pointe vers {court(cible)}, absent", False
+    if ici:
+        return ici, f"{ici.name}, ici (pas de _work/source.txt)", False
+    return None, "pas de prise dans le dossier", False
+
+
+def traces(d, stem):
+    f = lambda nom: d / nom.format(stem=stem)
+    t = {"notes": [n for n in ("FICHE.json", "NOTES-REPRISE.md", "RECHERCHE.md") if f(n).exists()]}
+    t["t_notes"] = max((quand(f(n)) for n in t["notes"]), default=None)
+    t["prep"] = quand(f("transcript.txt")) if f("_work/aligned.json").exists() else None
+    t["render"] = max((x for x in (quand(f("cuts.md")), quand(f("{stem}.derush.mp4"))) if x), default=None)
+    for k in ("derush", "reel", "logos", "motion", "repare", "overlays"):
+        t[k] = quand(f("{stem}.%s.mp4" % k))
+    t["overlays_spec"] = f("overlays/overlays.json").exists()
+    t["caption"] = quand(f("caption.txt"))
+    t["fcpxml"] = f("{stem}.fcpxml").exists()
+    t["motion_dir"] = f("motion").is_dir()
+    aussi = []
+    if f("CAPTION.md").exists():
+        aussi.append("CAPTION.md (ancien nom de caption.txt)")
+    aussi += [n for n in ("coupe-serree.md", "logos.json") if f(n).exists()]
+    src, _, _ = prise(d, stem)
+    autres = []
+    for x in sorted(d.iterdir()):
+        if x.name.startswith("."):
+            continue
+        if x.is_dir() and x.name not in DOSSIERS:
+            autres.append(x.name + "/")
+        elif (x.is_file() and x.suffix.lower() in VIDEO and x != src and x.name not in CONNUS
+              and not any(x.name == stem + s for s in SUFFIXES)):
+            autres.append(x.name)
+            # Une version plus récente que le montage, que derush export ne prendra pas.
+            if t["render"] and not t["reel"] and quand(x) > t["render"]:
+                t.setdefault("plus_recent", x)
+    if autres:
+        aussi.append("hors chaîne : " + ", ".join(autres[:4]) + (f" et {len(autres) - 4} de plus" if len(autres) > 4 else ""))
+    t["aussi"] = aussi
+    t["activite"] = max((quand(x) or 0 for x in d.iterdir() if x.name not in (".DS_Store", "_work")), default=None) or None
+    return t
+
+
+def suite_montage(t, ref):
+    """Après le prep : faux départs puis render, jamais un prep relancé (il efface _work/)."""
+    if t["prep"]:
+        return f"derush words {ref}, écrire retraction_cuts.json, puis derush render {ref}"
+    return None
+
+
+# ---- Ancienne chaîne : sans ETAT.json ----
+
+def lecture_ancienne(d, stem, t, src, ref):
+    nom = shlex.quote(stem)
+    fait = []
+    if t["notes"]:
+        fait.append(f"recherche {jour(t['t_notes'])} ({', '.join(t['notes'])})")
+    if t["repare"]:
+        fait.append(f"repare {jour(t['repare'])} ({stem}.repare.mp4)")
+    elif src and stem.endswith("_fixed"):
+        fait.append(f"repare (la prise est déjà la version réparée : {src.name})")
+    if t["prep"]:
+        fait.append(f"transcription {jour(t['prep'])}")
+    if t["render"]:
+        vus = [n for n, ok in (("cuts.md", (d / "cuts.md").exists()), (f"{stem}.derush.mp4", t["derush"]),
+                                (f"{stem}.fcpxml", t["fcpxml"])) if ok]
+        valide = " validé" if (t["reel"] or t["motion"] or t["motion_dir"]) else ""
+        fait.append(f"montage {jour(t['render'])}{valide} ({', '.join(vus)})")
+    if t["reel"]:
+        fait.append(f"export {jour(t['reel'])} ({stem}.reel.mp4" + (f", depuis {stem}.logos.mp4" if t["logos"] else "") + ")")
+    if t["motion"]:
+        fait.append(f"motion {jour(t['motion'])} ({stem}.motion.mp4)")
+    elif t["motion_dir"] and not t["overlays"]:
+        fait.append("motion commencé (motion/)")
+    if t["overlays"]:
+        fait.append(f"overlays {jour(t['overlays'])} ({stem}.overlays.mp4)")
+    if t["caption"]:
+        fait.append(f"caption {jour(t['caption'])}")
+
+    fini = False
+    if t["motion"]:
+        resume, geste, suite, fini = f"motion rendu le {jour(t['motion'])}, à publier", "publier (rien ne part tout seul)", FIN, True
+    elif t["overlays"] and t["caption"]:
+        resume = "sous-titres et caption faits, à exporter"
+        geste = f"valider {stem}.overlays.mp4 et caption.txt"
+        suite = f"après ton OK : outils/video export {nom} <nom-court>"
+    elif t["overlays"]:
+        resume = f"sous-titres rendus le {jour(t['overlays'])}, à valider"
+        geste = GESTE["overlays"].format(stem=stem)
+        suite = f"après ton OK (outils/video valide {nom} overlays) : la caption, /sm-video {nom}"
+    elif t["overlays_spec"]:
+        resume, geste, suite = "sous-titres commencés (overlays/overlays.json)", "rien de toi pour l'instant", f"outils/overlays.py essai {nom}, puis outils/overlays.py {nom}"
+    elif t["motion_dir"]:
+        resume, geste, suite = "motion commencé", "rien de toi pour l'instant", f"/sm-motion {nom}"
+    elif t["reel"]:
+        resume, geste, suite, fini = f"exportée le {jour(t['reel'])}, à publier", "publier (rien ne part tout seul)", FIN, True
+        if not t["caption"] and t["reel"] >= FINITION:
+            suite = f"publier, ou la finition (sous-titres, caption) : /sm-video {nom}"
+    elif t["render"] and not t["derush"]:
+        resume, geste, suite = f"montée le {jour(t['render'])}, mais {stem}.derush.mp4 n'est plus là", "rien de toi pour l'instant", f"derush render {ref}"
+    elif t["render"]:
+        resume = f"montée le {jour(t['render'])}, à valider"
+        geste = f"valider les coupes : {stem}.derush.mp4" + (f", ou {stem}.fcpxml dans DaVinci" if t["fcpxml"] else "")
+        suite = f"derush export {ref}" + (f" (part de {stem}.logos.mp4)" if t["logos"] else "")
+        if t.get("plus_recent"):
+            x = t["plus_recent"]
+            suite += f" ; pour exporter {x.name}, plus récent : derush export {ref} --from {shell(x)}"
+    elif t["prep"]:
+        resume, geste, suite = f"transcrite le {jour(t['prep'])}, faux départs à écrire", "rien de toi pour l'instant", suite_montage(t, ref)
+    elif src:
+        resume, geste, suite = "prise rangée, pas transcrite", "rien de toi pour l'instant", f"/sm-montage {shell(src)}"
+    elif t["notes"]:
+        resume = "recherche faite, prise à tourner"
+        geste = "tourner la prise (" + ", ".join(t["notes"]) + ")"
+        suite = "/sm-montage ~/Downloads/<prise>, une fois tournée (il rattache ces notes)"
+    else:
+        resume, geste, suite = "aucune trace de la chaîne", "rien", "rien à lancer ici"
+    return {"resume": resume, "fini": fini, "fait": fait, "reste": None, "geste": geste, "suite": suite,
+            "etat": "état : déduit des fichiers (pas d'ETAT.json), rien écrit"}
+
+
+# ---- Nouvelle chaîne : avec ETAT.json ----
+
+def recaler(d, stem, etat):
+    """ETAT.json comparé aux fichiers. Rend (étapes recalées, retards, périmées). N'écrit rien."""
+    etapes = {e: dict(v) for e, v in etat["etapes"].items()}
+    retards, perimees = [], {}
+    for e, noms in PREUVES.items():
+        vus = [(quand(d / n.format(stem=stem)), n.format(stem=stem)) for n in noms]
+        vus = [(t, n) for t, n in vus if t]
+        if not vus:
+            continue
+        t, nom = max(vus)
+        fait = horodatage(etapes[e]["fait"])
+        if fait is None or t > fait + TOLERANCE:
+            dit = f"ETAT.json dit {etapes[e]['fait']}" if etapes[e]["fait"] else "pas dans ETAT.json"
+            retards.append(f"{e} ({nom} du {datetime.fromtimestamp(t):%Y-%m-%d %H:%M}, {dit})")
+            etapes[e] = {"fait": datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds"),
+                         "mesures": {"recale": nom}, "valide": e not in A_VALIDER}
+    # Une étape plus ancienne qu'une étape d'avant est périmée : un re-montage refait l'export.
+    avant = None
+    for e in ETAPES:
+        v = etapes[e]
+        t = horodatage(v["fait"])
+        if t is None or v["mesures"].get("saute"):
+            continue
+        if avant and t + TOLERANCE < avant[1]:
+            perimees[e] = avant[0]
+            etapes[e] = {"fait": None, "mesures": {}, "valide": False}
+            continue
+        avant = (e, t)
+    return etapes, retards, perimees
+
+
+def lecture_etat(d, stem, t, etat, ref):
+    nom = shlex.quote(stem)
+    etapes, retards, perimees = recaler(d, stem, etat)
+    fait, reste, cible = [], [], None
+    for e in ETAPES:
+        v, m = etapes[e], etapes[e]["mesures"]
+        if m.get("saute"):
+            fait.append(f"{e} sautée ({m['saute']})")
+        elif v["fait"]:
+            quoi = f"{e} {(v['fait'] or '')[:10]}" + (f" (recalé sur {m['recale']})" if m.get("recale") else "")
+            fait.append(quoi + ("" if v["valide"] else ", à valider"))
+            if not v["valide"] and cible is None:
+                cible = ("valider", e)
+        else:
+            reste.append(e + (f" (à refaire : plus ancienne que {perimees[e]})" if e in perimees else ""))
+            if cible is None:
+                cible = ("faire", e)
+    if cible is None:
+        fini, resume, geste, suite = True, f"finie le {etapes['export']['fait'][:10]}, à publier", "publier (rien ne part tout seul)", FIN
+    else:
+        fini = False
+        quoi, e = cible
+        if quoi == "valider":
+            resume = f"{e} fait, attend ta validation"
+            geste = GESTE.get(e, f"valider {e}").format(stem=stem)
+            if e == "montage" and t["fcpxml"]:
+                geste += f", ou {stem}.fcpxml dans DaVinci"
+            apres = next((x for x in ETAPES[ETAPES.index(e) + 1:] if not etapes[x]["fait"] and not etapes[x]["mesures"].get("saute")), None)
+            suite = f"après ton OK (outils/video valide {nom} {e}) : " + (commande(apres, t, ref, nom) if apres else FIN)
+        else:
+            resume, geste, suite = f"{e} à faire", "rien de toi pour l'instant", commande(e, t, ref, nom)
+    if retards:
+        ligne = "ETAT.json en retard sur les fichiers : " + " ; ".join(retards) + ". État recalé sur les fichiers, rien écrit"
+    else:
+        ligne = "état : ETAT.json, d'accord avec les fichiers"
+    return {"resume": resume, "fini": fini, "fait": fait, "reste": reste, "geste": geste, "suite": suite,
+            "etat": ligne, "liens": liens(etat)}
+
+
+def commande(e, t, ref, nom):
+    if e == "montage":
+        return suite_montage(t, ref) or f"/sm-montage {ref}"
+    if e == "overlays" and not t["reel"]:
+        return f"derush export {ref} (le montage à -14 LUFS), puis /sm-video {nom}"
+    return SUITE[e].format(ref=ref, nom=nom)
+
+
+def liens(etat):
+    morceaux = []
+    if etat.get("source_origine"):
+        morceaux.append(f"venue de {etat['source_origine']}")
+    if etat.get("recherche"):
+        morceaux.append(f"recherche {etat['recherche']}")
+    return "liens : " + " ; ".join(morceaux) if morceaux else None
+
+
+# ---- valide et export : les deux écrivains d'aujourd'hui ----
+
+def depuis_fichiers(d, stem, jusqua):
+    """Premier ETAT.json d'une vidéo commencée sans lui. Une étape que ses fichiers montrent est
+    faite, validée jusqu'à « jusqua » compris (la suite a été faite dessus). Sans fichier : sautée
+    si elle n'a ni outil ni demande (SAUTEES), à faire sinon."""
+    etat, rang = etat_vide(stem), ETAPES.index(jusqua)
+    for i, e in enumerate(ETAPES):
+        vus = [(quand(d / n.format(stem=stem)), n.format(stem=stem)) for n in PREUVES.get(e, ())]
+        vus = [(t, n) for t, n in vus if t]
+        if vus:
+            t, n = max(vus)
+            etat["etapes"][e] = {"fait": datetime.fromtimestamp(t).astimezone().isoformat(timespec="seconds"),
+                                 "mesures": {"recale": n}, "valide": i <= rang or e not in A_VALIDER}
+        elif e in SAUTEES:
+            etat["etapes"][e]["mesures"] = {"saute": SAUTEES[e]}
+    return etat
+
+
+def etat_a_jour(d, jusqua):
+    """ETAT.json recalé sur les fichiers, ou le premier, tiré des fichiers."""
+    try:
+        etat = lire_etat(d)
+    except ValueError as err:
+        sys.exit(f"{err} : répare ou supprime ETAT.json, rien écrit")
+    if etat is None:
+        return depuis_fichiers(d, d.name, jusqua)
+    etat["etapes"] = recaler(d, d.name, etat)[0]
+    return etat
+
+
+def valider(a):
+    d = trouver(a.stem)
+    if a.etape not in ETAPES:
+        sys.exit(f"étape inconnue « {a.etape} » : {', '.join(ETAPES)}")
+    etat = etat_a_jour(d, a.etape)
+    if not etat["etapes"][a.etape]["fait"]:
+        sys.exit(f"{a.etape} n'est pas faite : rien à valider (outils/video statut {shlex.quote(d.name)})")
+    etat["etapes"][a.etape]["valide"] = True
+    ecrire_etat(d, etat)
+    print(f"{d.name} : {a.etape} validée, ETAT.json écrit")
+
+
+def lufs(f):
+    """Sonie intégrée mesurée par ffmpeg (ebur128), None si illisible."""
+    r = subprocess.run(["ffmpeg", "-nostdin", "-hide_banner", "-i", str(f), "-map", "0:a:0", "-af", "ebur128",
+                        "-f", "null", "-"], capture_output=True, text=True)
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", r.stderr)
+    return float(m[-1]) if m else None
+
+
+def exporter(a):
+    d = trouver(a.stem)
+    stem = d.name
+    finale = next((d / f"{stem}.{k}.mp4" for k in ("overlays", "motion", "reel") if (d / f"{stem}.{k}.mp4").exists()), None)
+    if finale is None:
+        sys.exit(f"rien à exporter : ni {stem}.overlays.mp4, ni .motion.mp4, ni .reel.mp4")
+    cap = d / "caption.txt"
+    if not cap.exists() or not cap.read_text(encoding="utf-8").strip():
+        sys.exit(f"pas de caption.txt : la caption passe avant l'export (/sm-video {shlex.quote(stem)})")
+    nom = a.nom[:-4] if a.nom.lower().endswith(".mp4") else a.nom
+    if not nom or "/" in nom or nom.startswith("."):
+        sys.exit(f"nom refusé : « {a.nom} » (un nom court, sans dossier)")
+    sonie = lufs(finale)
+    if sonie is None or abs(sonie + 14) > 1:
+        sys.exit(f"{finale.name} à {sonie} LUFS, la cible est -14 : derush export {shlex.quote(stem)} --from <montage>, puis refais les sous-titres")
+    # Tout ce qui se publie vit ensemble dans <STEM>/final/ : la vidéo, la caption, la vignette.
+    paquet = d / "final"
+    cible = paquet / f"{nom}.mp4"
+    if cible.exists() and not a.force and not filecmp.cmp(cible, finale, shallow=False):
+        sys.exit(f"{court(cible)} existe déjà et diffère : un autre nom, ou --force")
+    etat = etat_a_jour(d, "export")
+    paquet.mkdir(exist_ok=True)
+    for vieux in paquet.glob("*.mp4"):
+        if vieux != cible:
+            subprocess.run(["/usr/bin/trash", str(vieux)], check=True)  # un ancien nom part à la Corbeille, jamais rm
+    shutil.copy2(finale, cible)
+    shutil.copy2(cap, paquet / "caption.txt")
+    vignette = d / f"{stem}.thumbnail.png"
+    if vignette.exists():
+        shutil.copy2(vignette, paquet / "thumbnail.png")
+    marquer(etat, "export", {"fichier": court(cible), "depuis": finale.name, "lufs": sonie}, valide=True)
+    ecrire_etat(d, etat)
+    manque = "" if vignette.exists() else f" ; PAS de vignette ({stem}.thumbnail.png)"
+    print(f"{court(paquet)}/ : {cible.name} ({finale.name}, {sonie} LUFS), caption.txt, thumbnail.png{manque} ; publier reste ton geste")
+
+
+# ---- statut ----
+
+def vue(d):
+    stem = d.name
+    t = traces(d, stem)
+    src, dit, par_nom = prise(d, stem)
+    ref = shlex.quote(stem) if par_nom or not src else shell(src)
+    try:
+        etat = lire_etat(d)
+    except ValueError as err:
+        v = lecture_ancienne(d, stem, t, src, ref)
+        v["etat"] = f"{err} : état déduit des fichiers, rien écrit"
+    else:
+        v = lecture_etat(d, stem, t, etat, ref) if etat else lecture_ancienne(d, stem, t, src, ref)
+    v.update(stem=stem, source=dit, aussi=t["aussi"], activite=t["activite"])
+    return v
+
+
+def dossiers():
+    return [d for d in sorted(RACINE.iterdir()) if d.is_dir() and d.name[:1] not in "._"]
+
+
+def trouver(arg):
+    nom = Path(arg.rstrip("/")).name
+    if (RACINE / nom).is_dir():
+        return RACINE / nom
+    if Path(nom).suffix.lower() in VIDEO and (RACINE / Path(nom).stem).is_dir():
+        return RACINE / Path(nom).stem
+    noms = [d.name for d in dossiers()]
+    proches = [n for n in noms if n.startswith(nom)][:3] or difflib.get_close_matches(nom, noms, n=3, cutoff=0.6)
+    sys.exit(f"pas de dossier {court(RACINE / nom)}/" + (f" ; proches : {', '.join(proches)}" if proches else ""))
+
+
+def statut(a):
+    if not RACINE.is_dir():
+        sys.exit(f"pas de dossier vidéo : {RACINE}")
+    if a.stem:
+        v = vue(trouver(a.stem))
+        lignes = [f"{v['stem']} : {v['resume']}", f"source : {v['source']}"]
+        if v["fait"]:
+            lignes.append("fait : " + ", ".join(v["fait"]))
+        if v["reste"]:
+            lignes.append("reste : " + ", ".join(v["reste"]))
+        if v["aussi"]:
+            lignes.append("aussi : " + ", ".join(v["aussi"]))
+        if v.get("liens"):
+            lignes.append(v["liens"])
+        lignes += [f"attend ton geste : {v['geste']}", f"suite : {v['suite']}", v["etat"]]
+        print("\n".join(lignes[:10]))
+        return
+    vues = [vue(d) for d in dossiers()]
+    montrees = sorted((v for v in vues if a.toutes or not v["fini"]), key=lambda v: v["activite"] or 0, reverse=True)
+    print(f"{'Toutes les vidéos' if a.toutes else 'En cours'} ({len(montrees)}), de la plus récente à la plus ancienne :")
+    for v in montrees:
+        print(f"{jour(v['activite']) if v['activite'] else '?':<10}  {v['stem']} : {v['resume']} ; suite : {v['suite']}")
+    caches = len(vues) - len(montrees)
+    if caches:
+        s = "s" if caches > 1 else ""
+        print(f"{caches} terminée{s} (exportée{s} ou motion rendu) pas affichée{s} : outils/video statut --toutes")
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="outils/video", description="La chaîne vidéo, une vidéo à la fois.")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("statut", help="où en est une vidéo, ou la liste de celles en cours ; n'écrit rien")
+    s.add_argument("stem", nargs="?", help="nom du dossier dans videos/ (IMG_4615), ou un chemin vers lui")
+    s.add_argument("--toutes", action="store_true", help="liste aussi les vidéos terminées")
+    v = sub.add_parser("valide", help="ton OK sur une étape faite ; écrit ETAT.json")
+    v.add_argument("stem")
+    v.add_argument("etape", help=", ".join(ETAPES))
+    x = sub.add_parser("export", help="le paquet à publier dans videos/STEM/final/ ; écrit ETAT.json")
+    x.add_argument("stem")
+    x.add_argument("nom", help="nom court du fichier exporté (sante-mentale-neurones)")
+    x.add_argument("--force", action="store_true", help="remplace un export du même nom qui diffère")
+    a = ap.parse_args()
+    {"statut": statut, "valide": valider, "export": exporter}[a.cmd](a)
+
+
+if __name__ == "__main__":
+    main()
