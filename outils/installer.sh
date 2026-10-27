@@ -74,6 +74,16 @@ binaire python3 "brew install python@3.12"
 binaire uv "curl -LsSf https://astral.sh/uv/install.sh | sh"
 binaire node "brew install node   (Node 22 ou plus pour HyperFrames)"
 binaire npx "brew install node"
+if command -v node >/dev/null 2>&1; then
+  v=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)
+  [[ "${v:-0}" -ge 22 ]] && ok "node $v (22 ou plus)" || manque "node ${v:-?} trop vieux" "brew upgrade node   (HyperFrames demande Node 22+)"
+fi
+if [[ -f "$HOME/.claude/skills/hyperframes/SKILL.md" ]] \
+   || find "$HOME/.claude/plugins" -maxdepth 7 -path '*skills/hyperframes/SKILL.md' 2>/dev/null | grep -q .; then
+  ok "skills HyperFrames (sm-motion)"
+else
+  manque "skills HyperFrames (pour /sm-motion)" "npx skills add heygen-com/hyperframes --all   (ou plugin : claude plugin install hyperframes@hyperframes)"
+fi
 binaire claude "https://claude.com/claude-code"
 if command -v whisper >/dev/null 2>&1 || { [[ -n "${WHISPER:-}" && -x "${WHISPER:-}" ]]; }; then ok "whisper"
 else manque "whisper" "uv tool install openai-whisper   (ou export WHISPER=/chemin/whisper)"; fi

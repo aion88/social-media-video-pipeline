@@ -18,12 +18,14 @@ STYLE.md          your tone and bans, filled in once; Claude rereads captions ag
 
 ## Prerequisites
 
-- [Claude Code](https://claude.com/claude-code) (CLI, or the Desktop app "Code" tab)
+- [Claude Code](https://claude.com/claude-code) (CLI, or the Desktop app "Code" tab), with a Claude plan that includes Claude Code
+- The HyperFrames skills, needed by `/sm-motion`: `npx skills add heygen-com/hyperframes --all` (or the plugin: `claude plugin marketplace add heygen-com/hyperframes` then `claude plugin install hyperframes@hyperframes`). HyperFrames itself is fetched by `npx` at the first render, and so is the headless Chrome it renders with: the first render needs internet
 - `ffmpeg` + `ffprobe`, `python3` (3.10+), `uv`, `node` 22+ (for `npx hyperframes`)
 - [OpenAI Whisper](https://github.com/openai/whisper) on the PATH (`uv tool install openai-whisper`, or `export WHISPER=/path/to/whisper`); `torch` + `torchaudio` for the word alignment
 - Python modules: numpy, opencv-python, pillow, soundfile, fonttools (the installer adds them with `uv`)
 - Optional: DaVinci Resolve (free is enough). It brings two things: the film-look LUTs read by `outils/look.py` (without it the colour step only offers A, neutral), and hand-editing of the cuts through the `.fcpxml` timeline. The cuts themselves are made by ffmpeg, not by Resolve
 - Optional: your own sound folder `SFX_DIR` (see Sounds)
+- Tested on macOS (Apple Silicon). Linux should work (`xdg-open` instead of `open`) but has not been tested
 
 ## Install
 
@@ -35,6 +37,28 @@ outils/installer.sh --lier       # optional: link the skills into ~/.claude/skil
 ```
 
 Open the folder in Claude Code: the skills are loaded from `.claude/skills/`. Then fill in `STYLE.md`.
+
+## Quick start: your first video
+
+1. Film one take, vertical, in one go. Keep your script (with your effects, see below) in a text file.
+2. In Claude Code, from the repo folder: `/sm-montage ~/Downloads/my_take.mov`. The take moves to `videos/my_take/`. Its file name without extension, here `my_take`, is the **STEM**: every later command takes it.
+3. Give Claude your script: paste it, or save it as `videos/my_take/NOTES-REPRISE.md` (`/sm-recherche` writes this file for you if you start with research).
+4. Then just run `/sm-video my_take` and answer when it stops: validate the cuts, pick a look, validate the motion, the subtitles, the caption. At the end, `videos/my_take/final/` holds the video, `caption.txt` and `thumbnail.png`.
+
+`outils/video statut my_take` tells you at any time where the video stands and what comes next.
+
+## Writing the effects in your script
+
+This is the part that makes the motion feel written by you. In your script, next to the sentence, write in plain words what you want to see on screen when you say it:
+
+```
+Three habits so your notes are actually useful.   [highlight "useful"]
+First: put a date on every note.                  [circle on "date"]
+Second: one single place.                         [three words merge into one]
+Third: reread on Sunday, ten minutes.             [check mark, "10 min" drops in]
+```
+
+`/sm-motion` transcribes your edited video word by word, finds the exact moment you say each word, and builds one zone per idea with the effect you asked for, landing on that word. It shows you the plan of zones (times, words, effect) before building. No bracket syntax is required: any clear note works. A full example is in `example/motion/BRIEF-motion.md`.
 
 ## The commands, in order
 
@@ -77,7 +101,7 @@ Status of what is verified: the scripts were extracted from a working private se
 
 Tu parles à la caméra et tu donnes la prise brute à Claude Code. Claude dérushe (silences, euh, faux départs), te laisse valider les coupes, choisit un look, génère un motion HyperFrames calé mot à mot sur ta voix à partir des effets écrits dans ton script, incruste des sous-titres dynamiques, écrit la caption et exporte en 1080x1920. Rien ne se publie tout seul.
 
-Installation : `outils/installer.sh --verifier`, puis `outils/installer.sh`. Point d'entrée : `/sm-video <STEM>`, qui enchaîne toute la chaîne et s'arrête à chaque validation ; chaque étape a aussi sa commande (`/sm-etalonnage`, `/sm-soustitres`, `/sm-caption`, `/sm-export`). DaVinci Resolve est optionnel : il apporte les looks film de l'étalonnage et la retouche manuelle des coupes ; les coupes sont faites par ffmpeg. Remplis `STYLE.md` une fois (ton, interdits) : c'est la seule vérification de voix, Claude y relit chaque caption. Aucune banque de sons n'est livrée : sans `SFX_DIR`, le motion sort sans bruitages.
+Il te faut Claude Code (terminal ou onglet Code de l'app Desktop), ffmpeg, Node 22+, whisper et les skills HyperFrames (`npx skills add heygen-com/hyperframes --all`). Installation : `outils/installer.sh --verifier`, puis `outils/installer.sh`. Premier essai : `/sm-montage ~/Downloads/ma_prise.mov`, puis `/sm-video ma_prise`. Les effets s'écrivent en clair dans ton script, à côté de la phrase (« [cercle sur "date"] ») : `/sm-motion` les cale sur le mot. Point d'entrée : `/sm-video <STEM>`, qui enchaîne toute la chaîne et s'arrête à chaque validation ; chaque étape a aussi sa commande (`/sm-etalonnage`, `/sm-soustitres`, `/sm-caption`, `/sm-export`). DaVinci Resolve est optionnel : il apporte les looks film de l'étalonnage et la retouche manuelle des coupes ; les coupes sont faites par ffmpeg. Remplis `STYLE.md` une fois (ton, interdits) : c'est la seule vérification de voix, Claude y relit chaque caption. Aucune banque de sons n'est livrée : sans `SFX_DIR`, le motion sort sans bruitages.
 
 ## Licence
 
