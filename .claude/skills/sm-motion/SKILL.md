@@ -105,7 +105,8 @@ fondations, on réécrit les zones et les temps. `example/` montre un brief, une
     pour 80 s), puis
     `"$K/scripts/verify_render.sh" "../<STEM>.motion.mp4" assets/face.mp4 assets/sfx.wav <dossier de travail>`.
     Attendu : 1080x1920, 30 fps, durée = `total`, une piste audio, ~-14/-15 LUFS, et, si tu as des
-    bruitages, corrélation résidu/sfx > 0,8. Regarder `sheet.jpg` et `last.jpg` (ton visage, pas
+    bruitages de ta banque (`SFX_DIR`), corrélation résidu/sfx > 0,8 ; sans banque, seuls les
+    souffles `noise` sont mixés et une corrélation basse (~0,3) est normale, pas un échec. Regarder `sheet.jpg` et `last.jpg` (ton visage, pas
     du noir). Ouvrir le MP4. Le rendu se vérifie par ce script et ton regard, pas par un
     sous-agent. Un re-rendu après une retouche ne relance la revue de l'étape 8 que si des TEXTES
     ont changé, et alors sur les zones touchées seulement.

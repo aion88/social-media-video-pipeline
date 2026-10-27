@@ -2,7 +2,8 @@
 # Contrôle d'un rendu motion, mesuré, pas regardé « à l'œil ».
 # Usage : verify_render.sh <rendu.mp4> <voix.mp4 (la vidéo montée)> <sfx.wav> <dossier_sortie>
 # Imprime : flux (attendu 1080x1920, 30 fps, 1 piste audio), loudness intégrée (attendu ~-14/-15 LUFS),
-# corrélation résidu/sfx (rendu moins la voix ; attendu > 0,8, sinon les bruitages manquent).
+# corrélation résidu/sfx (rendu moins la voix ; attendu > 0,8 avec une banque SFX_DIR ;
+# sans banque, seuls les souffles "noise" sont mixés et ~0,3 est normal).
 # Écrit : sheet.jpg (une image toutes les 5 s) et last.jpg (dernière image). LES REGARDER.
 set -euo pipefail
 R="$1"; V="$2"; S="$3"; O="$4"

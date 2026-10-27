@@ -67,7 +67,7 @@ Subtitles and motion use Inter Display, Caveat and JetBrains Mono, all SIL OFL 1
 | Claude Code on the web | Possible, but you must get the raw video into the cloud sandbox and install ffmpeg, whisper (CPU, slow) and Node there; the look step needs Resolve LUTs, so use `"look": null` |
 | claude.ai chat | No: no terminal, no render |
 
-Status of what is verified: the scripts were extracted from a working private setup and checked here for syntax (`bash -n`, `py_compile`) and for `installer.sh --verifier`. The derush on a real take and the HyperFrames render were not re-run after the extraction.
+Status of what is verified: the scripts were extracted from a working private setup and checked here for syntax (`bash -n`, `py_compile`) and for `installer.sh --verifier`. An independent end-to-end run from a fresh clone then passed on a synthetic 20 s take (macOS `say` voice): derush, HyperFrames render, `verify_render.sh`, subtitles and export. Not yet tested on Linux.
 
 ## En français
 
