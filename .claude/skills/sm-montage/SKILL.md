@@ -40,7 +40,7 @@ automatique ne fait pas : **pouvoir rééditer**, parce qu'il ne fait pas un san
 3. `derush render <STEM>` : montage + `cuts.md` + **`<STEM>.fcpxml`** (écrit automatiquement).
 4. Relire `cuts.md` (section diff) comme le dit `derush`.
 5. Te rendre la main, en puces :
-   - le montage : `<STEM>.derush.mp4` ;
+   - le montage : `<STEM>.apercu-look.mp4`, avec le look fixé (sans look fixé : `<STEM>.derush.mp4`) ;
    - **retoucher toi-même** : DaVinci Resolve, File > Import > Timeline, `<STEM>.fcpxml`.
      Chaque clip pointe sur la source entière : tirer un bord de clip fait revenir ce qui a été
      coupé. Rien n'est perdu ;

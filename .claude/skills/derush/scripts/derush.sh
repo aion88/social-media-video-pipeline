@@ -210,6 +210,17 @@ print("\n".join(lines[3:6]))
 PY
   log "rapport : $OUT/cuts.md (relire la section diff, remplir Sujet)"
   cmd_fcpxml
+  cmd_apercu
+}
+
+# L'aperçu à valider porte le look fixé (outils/looks/kaizn.cube) : on valide l'image qui sera
+# publiée, pas la caméra brute. Export ne le lit pas, il reste un fichier de relecture.
+cmd_apercu() {
+  local cube="$SM/outils/looks/kaizn.cube"
+  [[ -f "$cube" ]] || { log "aperçu : aucun look fixé, $STEM.derush.mp4 est l'image brute"; return 0; }
+  ffmpeg -loglevel error -y -i "$OUT/$STEM.derush.mp4" -vf "lut3d=$cube,scale=1080:1920" \
+    -c:v libx264 -crf 20 -preset fast -c:a copy "$OUT/$STEM.apercu-look.mp4" \
+    && log "aperçu avec le look : $OUT/$STEM.apercu-look.mp4 (c'est lui qu'on valide)"
 }
 
 cmd_logos() {
@@ -253,6 +264,7 @@ case "$CMD" in
   render) cmd_render;;
   logos) cmd_logos "${@:3}";;
   fcpxml) cmd_fcpxml;;
+  apercu) cmd_apercu;;
   export) cmd_export;;
   all) cmd_prep; cmd_render; cmd_export;;
   *) usage;;
