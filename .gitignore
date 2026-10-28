@@ -18,3 +18,6 @@ node_modules/
 
 # your look, per machine
 outils/looks/
+
+# Worktrees Claude Code
+.claude/worktrees/
